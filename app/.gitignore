@@ -1,0 +1,33 @@
+# Archivos locales (rutas del SDK)
+local.properties
+
+# Archivos de build
+.gradle
+/build
+/captures
+.externalNativeBuild
+
+# Archivos de Android Studio / IntelliJ
+.idea
+*.iml
+
+# Logs
+*.log
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Claves y firmas (MUY IMPORTANTE)
+*.jks
+*.keystore
+
+# Archivos de compilación
+*.apk
+*.aab
+
+# Kotlin
+.kotlin
+
+# Otros temporales
+out/
