@@ -31,7 +31,7 @@ Descarga el APK más reciente desde [Releases](https://github.com/Cookie-seeker/
 
 ## ¿Encontraste un bug?
 
-Abre un [Issue] y cuéntanos:
+Abre un [Issue] y explica:
 - Qué pasó?
 - En qué dispositivo?
 - Detalla el error
