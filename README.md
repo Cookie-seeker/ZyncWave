@@ -7,7 +7,7 @@
   
   ![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
   ![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)
-  ![Version](https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge)
+  ![Version](https://img.shields.io/badge/version-1.0.1-blue?style=for-the-badge)
 </div>
 
 ---
