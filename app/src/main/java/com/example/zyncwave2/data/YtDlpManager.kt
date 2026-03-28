@@ -30,6 +30,9 @@ data class VideoMetadata(
 
 object YtDlpManager {
 
+    private val VIDEO_EXTENSIONS = setOf("mp4", "mkv", "avi", "mov", "webm")
+    private val AUDIO_EXTENSIONS = setOf("mp3", "m4a", "aac", "flac", "wav", "opus", "ogg")
+
     private fun getAudioDir() = File(
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
         "ZyncWave/Audio"
@@ -48,6 +51,15 @@ object YtDlpManager {
         val nativeDir = context.applicationInfo.nativeLibraryDir
         val ffmpeg = File(nativeDir, "libffmpeg.so")
         return if (ffmpeg.exists()) ffmpeg.absolutePath else null
+    }
+
+    //  FIX: Limpiar carpeta temp antes de cada descarga
+    private fun cleanTempDir(tempDir: File) {
+        try {
+            tempDir.listFiles()?.forEach { it.delete() }
+        } catch (e: Exception) {
+            android.util.Log.w("YTDLP", "No se pudo limpiar temp: ${e.message}")
+        }
     }
 
     suspend fun getVideoTitle(
@@ -78,9 +90,9 @@ object YtDlpManager {
             val response = YoutubeDL.getInstance().execute(request)
             val parts = response.out.trim().split("|")
             VideoMetadata(
-                title = parts.getOrNull(0)?.trim() ?: "",
-                artist = parts.getOrNull(1)?.trim() ?: "",
-                album = parts.getOrNull(2)?.trim() ?: "",
+                title        = parts.getOrNull(0)?.trim() ?: "",
+                artist       = parts.getOrNull(1)?.trim() ?: "",
+                album        = parts.getOrNull(2)?.trim() ?: "",
                 thumbnailUrl = parts.getOrNull(3)?.trim()
             )
         } catch (e: Exception) {
@@ -123,17 +135,13 @@ object YtDlpManager {
             if (parts.size < 3) continue
 
             try {
-                val formatId = parts[0]
-                val ext = parts[1]
+                val formatId   = parts[0]
+                val ext        = parts[1]
                 val resolution = parts[2]
-                val isAudio = resolution == "audio" || line.contains("audio only")
-                val filesize = parts.firstOrNull {
-                    it.contains("MiB") || it.contains("KiB")
-                } ?: ""
-                val bitrate = parts.firstOrNull {
-                    it.endsWith("k") && it.dropLast(1).toDoubleOrNull() != null
-                } ?: ""
-                val note = parts.drop(3).joinToString(" ").take(40)
+                val isAudio    = resolution == "audio" || line.contains("audio only")
+                val filesize   = parts.firstOrNull { it.contains("MiB") || it.contains("KiB") } ?: ""
+                val bitrate    = parts.firstOrNull { it.endsWith("k") && it.dropLast(1).toDoubleOrNull() != null } ?: ""
+                val note       = parts.drop(3).joinToString(" ").take(40)
                 formats.add(VideoFormat(formatId, ext, resolution, filesize, bitrate, isAudio, note))
             } catch (e: Exception) {
                 continue
@@ -142,17 +150,28 @@ object YtDlpManager {
         return formats
     }
 
+    // Detección correcta de video/audio por extensión real del archivo
     private fun saveFileViaMediaStore(
         context: Context,
         file: File,
-        isVideo: Boolean
+        isVideoIntent: Boolean   // lo que el usuario pidió (audio o video)
     ) {
         val ext = file.extension.lowercase()
-        val actuallyVideo = isVideo && ext !in listOf("webm", "opus", "ogg")
 
-        android.util.Log.d("YTDLP", "Guardando: ${file.name}, ext: $ext, isVideo: $isVideo")
+        // Ignorar miniaturas y archivos temporales que no son audio/video
+        if (ext !in AUDIO_EXTENSIONS && ext !in VIDEO_EXTENSIONS) {
+            android.util.Log.d("YTDLP", "Ignorando archivo no multimedia: ${file.name}")
+            file.delete()
+            return
+        }
 
-        if (ext in listOf("webm", "opus", "ogg")) {
+        // La extensión real del archivo manda, no lo que el usuario pidió
+        val actuallyVideo = ext in VIDEO_EXTENSIONS
+
+        android.util.Log.d("YTDLP", "Guardando: ${file.name}, ext: $ext, isVideo: $actuallyVideo")
+
+        // webm/opus/ogg: copiar directo sin MediaStore para evitar conflictos de MIME
+        if (ext in setOf("opus", "ogg")) {
             val destDir = getAudioDir()
             if (!destDir.exists()) destDir.mkdirs()
             val dest = File(destDir, file.name)
@@ -166,28 +185,31 @@ object YtDlpManager {
         }
 
         val mimeType = when (ext) {
-            "mp3" -> "audio/mpeg"
-            "m4a" -> "audio/mp4"
-            "aac" -> "audio/aac"
+            "mp3"  -> "audio/mpeg"
+            "m4a"  -> "audio/mp4"
+            "aac"  -> "audio/aac"
             "flac" -> "audio/flac"
-            "wav" -> "audio/wav"
-            "mp4" -> "video/mp4"
-            "mkv" -> "video/x-matroska"
-            else -> if (actuallyVideo) "video/mp4" else "audio/mpeg"
+            "wav"  -> "audio/wav"
+            "mp4"  -> "video/mp4"
+            "mkv"  -> "video/x-matroska"
+            "avi"  -> "video/avi"
+            "mov"  -> "video/quicktime"
+            "webm" -> if (actuallyVideo) "video/webm" else "audio/webm"
+            else   -> if (actuallyVideo) "video/mp4" else "audio/mpeg"
         }
 
         val relativePath = if (actuallyVideo) "Music/ZyncWave/Video" else "Music/ZyncWave/Audio"
+
+        val collection = if (actuallyVideo)
+            MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        else
+            MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
 
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, file.name)
             put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
             put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
         }
-
-        val collection = if (actuallyVideo)
-            MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
-        else
-            MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
 
         val uri = context.contentResolver.insert(collection, values)
         android.util.Log.d("YTDLP", "URI resultado: $uri")
@@ -210,6 +232,9 @@ object YtDlpManager {
             val tempDir = File(context.cacheDir, "ytdlp_temp")
             if (!tempDir.exists()) tempDir.mkdirs()
 
+            // ── FIX: limpiar temp antes de descargar ──
+            cleanTempDir(tempDir)
+
             onProgress("Iniciando descarga de audio...", 0f)
 
             val request = YoutubeDLRequest(url).apply {
@@ -230,7 +255,7 @@ object YtDlpManager {
             onProgress("Guardando en ZyncWave/Audio...", 0.95f)
 
             tempDir.listFiles()?.forEach { file ->
-                saveFileViaMediaStore(context, file, isVideo = false)
+                saveFileViaMediaStore(context, file, isVideoIntent = false)
             }
 
             onProgress("✓ Audio guardado en ZyncWave/Audio", 1f)
@@ -251,6 +276,9 @@ object YtDlpManager {
             val tempDir = File(context.cacheDir, "ytdlp_temp")
             if (!tempDir.exists()) tempDir.mkdirs()
 
+            // ── FIX: limpiar temp antes de descargar ──
+            cleanTempDir(tempDir)
+
             onProgress("Iniciando descarga de video...", 0f)
 
             val request = YoutubeDLRequest(url).apply {
@@ -269,7 +297,7 @@ object YtDlpManager {
             onProgress("Guardando en ZyncWave/Video...", 0.95f)
 
             tempDir.listFiles()?.forEach { file ->
-                saveFileViaMediaStore(context, file, isVideo = true)
+                saveFileViaMediaStore(context, file, isVideoIntent = true)
             }
 
             onProgress("✓ Video guardado en ZyncWave/Video", 1f)
@@ -292,12 +320,15 @@ object YtDlpManager {
             val tempDir = File(context.cacheDir, "ytdlp_temp")
             if (!tempDir.exists()) tempDir.mkdirs()
 
+            // ── FIX: limpiar temp antes de descargar ──
+            cleanTempDir(tempDir)
+
             android.util.Log.d("YTDLP", "Descargando formato: $formatId ext: $ext")
             onProgress("Iniciando descarga...", 0f)
 
-            val nativeAudioExts = listOf("opus", "ogg")
-            val convertAudioExts = listOf("mp3", "m4a", "aac", "flac", "wav")
-            val isVideo = ext in listOf("mp4", "mkv", "avi", "mov")
+            val isVideoIntent  = ext in VIDEO_EXTENSIONS
+            val nativeAudioExts   = setOf("opus", "ogg")
+            val convertAudioExts  = setOf("mp3", "m4a", "aac", "flac", "wav")
 
             val request = YoutubeDLRequest(url).apply {
                 addOption("-f", formatId)
@@ -305,7 +336,7 @@ object YtDlpManager {
                     ext in nativeAudioExts -> {
                         android.util.Log.d("YTDLP", "Descargando nativo: $ext")
                     }
-                    ext == "webm" -> {
+                    ext == "webm" && !isVideoIntent -> {
                         addOption("-x")
                         addOption("--audio-format", "mp3")
                         addOption("--audio-quality", "0")
@@ -333,10 +364,10 @@ object YtDlpManager {
             android.util.Log.d("YTDLP", "Archivos en temp: ${files?.map { it.name }}")
 
             files?.forEach { file ->
-                saveFileViaMediaStore(context, file, isVideo)
+                saveFileViaMediaStore(context, file, isVideoIntent)
             }
 
-            onProgress("✓ Guardado en ZyncWave/${if (isVideo) "Video" else "Audio"}", 1f)
+            onProgress("✓ Guardado en ZyncWave/${if (isVideoIntent) "Video" else "Audio"}", 1f)
             true
         } catch (e: Exception) {
             android.util.Log.e("YTDLP", "ERROR downloadWithFormat: ${e.message}", e)
