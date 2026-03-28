@@ -80,25 +80,23 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope   = rememberCoroutineScope()
 
-    var urlInput          by remember { mutableStateOf("") }
-    var isLoading         by remember { mutableStateOf(DownloadService.isDownloading) }
-    var isLoadingFormats  by remember { mutableStateOf(false) }
-    var downloadFormat    by remember { mutableStateOf("audio") }
-    var videoTitle        by remember { mutableStateOf("") }
-    var statusMessage     by remember { mutableStateOf("") }
-    var currentProgress   by remember { mutableStateOf(0f) }
-    var showFormats       by remember { mutableStateOf(false) }
-    var availableFormats  by remember { mutableStateOf<List<VideoFormat>>(emptyList()) }
-    var selectedFormat    by remember { mutableStateOf<VideoFormat?>(null) }
-    val downloadList      = remember { mutableStateListOf<DownloadItem>() }
-    var isBinaryReady     by remember { mutableStateOf(false) }
+    var urlInput         by remember { mutableStateOf("") }
+    var isLoading        by remember { mutableStateOf(DownloadService.isDownloading) }
+    var isLoadingFormats by remember { mutableStateOf(false) }
+    var downloadFormat   by remember { mutableStateOf("audio") }
+    var videoTitle       by remember { mutableStateOf("") }
+    var statusMessage    by remember { mutableStateOf("") }
+    var currentProgress  by remember { mutableStateOf(0f) }
+    var showFormats      by remember { mutableStateOf(false) }
+    var availableFormats by remember { mutableStateOf<List<VideoFormat>>(emptyList()) }
+    var selectedFormat   by remember { mutableStateOf<VideoFormat?>(null) }
+    val downloadList     = remember { mutableStateListOf<DownloadItem>() }
+    var isBinaryReady    by remember { mutableStateOf(false) }
 
-    // Cargar historial + verificar binario
+    //─ Cargar historial + verificar binario
     LaunchedEffect(Unit) {
-        val history  = withContext(Dispatchers.IO) { loadHistory(context) }
+        val history = withContext(Dispatchers.IO) { loadHistory(context) }
         downloadList.addAll(history)
-
-        // Esperar hasta 5 s a que yt-dlp esté listo (se inicializa en App.onCreate)
         var waited = 0
         while (!YtDlpManager.isBinaryInstalled(context) && waited < 50) {
             kotlinx.coroutines.delay(100)
@@ -108,10 +106,9 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
         if (!isBinaryReady) statusMessage = "Error: librería no inicializada. Reinicia la app."
     }
 
-    // Registrar callbacks del DownloadService
+    // Callbacks del DownloadService
     DisposableEffect(Unit) {
         DownloadService.onProgress = { itemId, msg, progress ->
-            // Actualizar UI desde cualquier hilo
             statusMessage   = msg
             currentProgress = progress
             val idx = downloadList.indexOfFirst { it.id == itemId }
@@ -126,24 +123,44 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
                 )
             }
             saveHistory(context, downloadList.toList())
-            if (success) { urlInput = ""; selectedFormat = null }
+            if (success) {
+                urlInput         = ""
+                selectedFormat   = null
+                availableFormats = emptyList()
+                videoTitle       = ""
+            }
             isLoading       = false
             currentProgress = 0f
             statusMessage   = ""
         }
         onDispose {
-            // Limpiar callbacks al salir del Composable (la descarga sigue en el Service)
             DownloadService.onProgress = null
             DownloadService.onFinished = null
         }
     }
 
-    // Función para lanzar la descarga vía Service
+    // Función para obtener formatos
+    fun fetchFormats() {
+        scope.launch {
+            isLoadingFormats = true
+            statusMessage    = "Obteniendo formatos..."
+            val title   = YtDlpManager.getVideoTitle(context, urlInput.trim())
+            videoTitle  = title ?: ""
+            val formats = YtDlpManager.getFormats(context, urlInput.trim())
+            availableFormats = formats
+            isLoadingFormats = false
+            statusMessage    = ""
+            if (formats.isNotEmpty()) showFormats = true
+            else statusMessage = "No se pudieron obtener formatos. Verifica la URL."
+        }
+    }
+
+    // Iniciar descarga
     fun startDownload() {
         val currentUrl = urlInput.trim()
         val title      = videoTitle.ifBlank { currentUrl }
         val itemId     = System.currentTimeMillis().toString()
-        val fmt        = selectedFormat
+        val fmt        = selectedFormat ?: return
 
         val item = DownloadItem(itemId, title, currentUrl, downloadFormat, "downloading", 0f)
         downloadList.add(0, item)
@@ -151,17 +168,11 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
         isLoading = true
 
         val intent = Intent(context, DownloadService::class.java).apply {
-            putExtra(DownloadService.EXTRA_URL,     currentUrl)
-            putExtra(DownloadService.EXTRA_ITEM_ID, itemId)
-            when {
-                fmt != null -> {
-                    action = DownloadService.ACTION_DOWNLOAD_FORMAT
-                    putExtra(DownloadService.EXTRA_FORMAT_ID, fmt.formatId)
-                    putExtra(DownloadService.EXTRA_EXT,       fmt.ext.ifBlank { if (downloadFormat == "audio") "mp3" else "mp4" })
-                }
-                downloadFormat == "audio" -> action = DownloadService.ACTION_DOWNLOAD_AUDIO
-                else                      -> action = DownloadService.ACTION_DOWNLOAD_VIDEO
-            }
+            action = DownloadService.ACTION_DOWNLOAD_FORMAT
+            putExtra(DownloadService.EXTRA_URL,       currentUrl)
+            putExtra(DownloadService.EXTRA_ITEM_ID,   itemId)
+            putExtra(DownloadService.EXTRA_FORMAT_ID, fmt.formatId)
+            putExtra(DownloadService.EXTRA_EXT,       fmt.ext.ifBlank { if (downloadFormat == "audio") "mp3" else "mp4" })
         }
         context.startService(intent)
     }
@@ -186,69 +197,59 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Color(0xff191c1f), Color(0xff2c2c38))
-                )
-            )
+            .background(Brush.verticalGradient(listOf(Color(0xff191c1f), Color(0xff2c2c38))))
             .padding(top = 48.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
     ) {
         Text(
-            text = "Descargar",
-            color = Color.White,
+            text       = "Descargar",
+            color      = Color.White,
             fontWeight = FontWeight.Bold,
-            fontSize = 22.sp,
+            fontSize   = 22.sp,
             fontFamily = BebasNeue,
-            modifier = Modifier.padding(bottom = 16.dp)
+            modifier   = Modifier.padding(bottom = 16.dp)
         )
 
         // Campo URL
         OutlinedTextField(
-            value = urlInput,
+            value         = urlInput,
             onValueChange = {
-                urlInput        = it
-                videoTitle      = ""
-                selectedFormat  = null
+                urlInput         = it
+                videoTitle       = ""
+                selectedFormat   = null
                 availableFormats = emptyList()
+                statusMessage    = ""
             },
-            label = { Text("Pega una URL válida", color = Color.White) },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = isBinaryReady && !isLoading && !isLoadingFormats,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor   = Color(0xFF2C2C2E),
+            label      = { Text("Pega una URL válida", color = Color.White) },
+            modifier   = Modifier.fillMaxWidth(),
+            enabled    = isBinaryReady && !isLoading && !isLoadingFormats,
+            colors     = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor   = Color(0xFF433C48),
                 unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
                 focusedTextColor     = Color.White,
                 unfocusedTextColor   = Color.White,
                 cursorColor          = Color.White
             ),
-            singleLine = true,
+            singleLine   = true,
             trailingIcon = {
                 if (urlInput.isNotBlank() && !isLoading && isBinaryReady) {
-                    IconButton(onClick = {
-                        scope.launch {
-                            isLoadingFormats = true
-                            statusMessage    = "Obteniendo formatos..."
-                            val title   = YtDlpManager.getVideoTitle(context, urlInput.trim())
-                            videoTitle  = title ?: ""
-                            val formats = YtDlpManager.getFormats(context, urlInput.trim())
-                            availableFormats = formats
-                            isLoadingFormats = false
+                    if (isLoadingFormats) {
+                        CircularProgressIndicator(
+                            color       = Color.White,
+                            modifier    = Modifier.size(20.dp).padding(2.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        IconButton(onClick = {
+                            urlInput         = ""
+                            selectedFormat   = null
+                            availableFormats = emptyList()
+                            videoTitle       = ""
                             statusMessage    = ""
-                            if (formats.isNotEmpty()) showFormats = true
-                            else statusMessage = "No se pudieron obtener formatos"
-                        }
-                    }) {
-                        if (isLoadingFormats) {
-                            CircularProgressIndicator(
-                                color         = Color.White,
-                                modifier      = Modifier.size(20.dp),
-                                strokeWidth   = 2.dp
-                            )
-                        } else {
+                        }) {
                             Icon(
-                                painterResource(R.drawable.outline_play_circle_24),
-                                contentDescription = null,
-                                tint = Color.Black
+                                painterResource(R.drawable.outline_delete_24),
+                                contentDescription = "Limpiar",
+                                tint = Color.White.copy(alpha = 0.6f)
                             )
                         }
                     }
@@ -256,10 +257,11 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
             }
         )
 
+        // Título del video si ya se obtuvo
         if (videoTitle.isNotBlank()) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text     = " $videoTitle",
+                text     = videoTitle,
                 color    = Color(0xffbbbbbb),
                 fontSize = 13.sp,
                 maxLines = 2,
@@ -267,8 +269,9 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
             )
         }
 
+        // Formato seleccionado
         if (selectedFormat != null) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -282,34 +285,40 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
                         else R.drawable.outline_play_circle_24
                     ),
                     contentDescription = null,
-                    tint   = Color.Black,
+                    tint     = Color(0xFF9c27b0),
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text     = "Formato: ${selectedFormat!!.formatId} - ${selectedFormat!!.ext.uppercase()}",
+                    text     = "${selectedFormat!!.formatId} · ${selectedFormat!!.ext.uppercase()}",
                     color    = Color.White,
                     fontSize = 12.sp,
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(
-                    onClick         = { showFormats = true },
-                    contentPadding  = PaddingValues(0.dp)
+                    onClick        = { showFormats = true },
+                    contentPadding = PaddingValues(0.dp)
                 ) {
-                    Text("Cambiar", color = Color.White, fontSize = 11.sp)
+                    Text("Cambiar", color = Color(0xffbbbbbb), fontSize = 11.sp)
                 }
             }
         }
 
+        // Mensaje de error/estado
+        if (statusMessage.isNotBlank() && !isLoading) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(statusMessage, color = Color(0xFFe91e63), fontSize = 12.sp)
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Progreso
+        // Progreso de descarga
         if (isLoading) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement  = Arrangement.SpaceBetween,
-                    verticalAlignment      = Alignment.CenterVertically
+                    modifier              = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment     = Alignment.CenterVertically
                 ) {
                     Text(
                         text     = statusMessage.take(40),
@@ -329,14 +338,12 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
                 LinearProgressIndicator(
                     progress   = { currentProgress },
                     modifier   = Modifier.fillMaxWidth().height(6.dp),
-                    color      = Color.Black,
+                    color      = Color.White,
                     trackColor = Color(0x30ffffff)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Aviso de segundo plano
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text     = "Puedes salir de la app, la descarga continuará en segundo plano.",
+                    "Puedes salir de la app, la descarga continuará en segundo plano.",
                     color    = Color(0x80ffffff),
                     fontSize = 11.sp
                 )
@@ -345,35 +352,22 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
         }
 
         // Botones
-        Row(
-            modifier              = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (!isLoading) {
+        if (!isLoading) {
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Botón Ver formatos (siempre visible si hay URL)
                 OutlinedButton(
-                    onClick = {
-                        if (availableFormats.isNotEmpty()) {
-                            showFormats = true
-                        } else {
-                            scope.launch {
-                                isLoadingFormats = true
-                                statusMessage    = "Obteniendo formatos..."
-                                val title   = YtDlpManager.getVideoTitle(context, urlInput.trim())
-                                videoTitle  = title ?: ""
-                                val formats = YtDlpManager.getFormats(context, urlInput.trim())
-                                availableFormats = formats
-                                isLoadingFormats = false
-                                statusMessage    = ""
-                                if (formats.isNotEmpty()) showFormats = true
-                                else statusMessage = "No se pudieron obtener formatos"
-                            }
-                        }
+                    onClick  = {
+                        if (availableFormats.isNotEmpty()) showFormats = true
+                        else fetchFormats()
                     },
-                    enabled = isBinaryReady && urlInput.isNotBlank() && !isLoadingFormats,
-                    shape   = RoundedCornerShape(12.dp),
+                    enabled  = isBinaryReady && urlInput.isNotBlank() && !isLoadingFormats,
+                    shape    = RoundedCornerShape(12.dp),
                     modifier = Modifier.weight(1f),
-                    colors  = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    border  = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2C2C2E))
+                    colors   = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                    border   = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF433C48))
                 ) {
                     if (isLoadingFormats) {
                         CircularProgressIndicator(
@@ -382,54 +376,71 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
                             strokeWidth = 2.dp
                         )
                     } else {
+                        Icon(
+                            painterResource(R.drawable.outline_equalizer_24),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text("Ver formatos", fontSize = 13.sp)
                     }
                 }
-            }
 
+                // Botón Descargar / solo activo si hay formato elegido
+                Button(
+                    onClick  = { startDownload() },
+                    modifier = Modifier.weight(1f),
+                    enabled  = isBinaryReady && selectedFormat != null,
+                    shape    = RoundedCornerShape(12.dp),
+                    colors   = ButtonDefaults.buttonColors(
+                        containerColor         = Color(0xFF433C48),
+                        disabledContainerColor = Color(0x30ffffff)
+                    )
+                ) {
+                    Icon(
+                        painterResource(R.drawable.outline_download_24),
+                        contentDescription = null,
+                        tint     = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text       = "Descargar",
+                        color      = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize   = 13.sp
+                    )
+                }
+            }
+        } else {
+            // Botón cancelar durante descarga
             Button(
-                onClick = { if (isLoading) cancelDownload() else startDownload() },
-                modifier = Modifier.weight(1f),
-                enabled  = isBinaryReady && (isLoading || urlInput.isNotBlank()),
+                onClick  = { cancelDownload() },
+                modifier = Modifier.fillMaxWidth(),
                 shape    = RoundedCornerShape(12.dp),
-                colors   = ButtonDefaults.buttonColors(
-                    containerColor = if (isLoading) Color(0xFFe91e63) else Color(0xFF2C2C2E)
-                )
+                colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFFe91e63))
             ) {
                 Icon(
-                    painterResource(
-                        if (isLoading) R.drawable.outline_delete_24
-                        else R.drawable.outline_download_24
-                    ),
+                    painterResource(R.drawable.outline_delete_24),
                     contentDescription = null,
                     tint     = Color.White,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    if (isLoading) "Cancelar" else "Descargar",
-                    color      = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize   = 13.sp
-                )
+                Text("Cancelar", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Historial
+        //  Historial
         if (downloadList.isNotEmpty()) {
             Row(
                 modifier              = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
-                Text(
-                    text       = "Historial",
-                    color      = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize   = 16.sp
-                )
+                Text("Historial", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 TextButton(onClick = {
                     downloadList.clear()
                     saveHistory(context, emptyList())
@@ -501,7 +512,7 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    // BottomSheet de formatos
+    // BottomSheet de los formatos
     if (showFormats) {
         ModalBottomSheet(
             onDismissRequest = { showFormats = false },
@@ -529,25 +540,17 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
                 val videoFormats = availableFormats.filter { !it.isAudio }
 
                 if (audioFormats.isNotEmpty()) {
-                    Text(
-                        "Audio",
-                        color      = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize   = 14.sp,
-                        modifier   = Modifier.padding(bottom = 8.dp)
-                    )
+                    Text("Audio", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                        modifier = Modifier.padding(bottom = 8.dp))
                     LazyColumn(
-                        modifier              = Modifier.heightIn(max = 200.dp),
-                        verticalArrangement   = Arrangement.spacedBy(6.dp)
+                        modifier            = Modifier.heightIn(max = 200.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(audioFormats) { format ->
                             FormatItem(
                                 format   = format,
                                 selected = selectedFormat?.formatId == format.formatId,
-                                onClick  = {
-                                    selectedFormat = format
-                                    downloadFormat = "audio"
-                                }
+                                onClick  = { selectedFormat = format; downloadFormat = "audio" }
                             )
                         }
                     }
@@ -555,25 +558,17 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
                 }
 
                 if (videoFormats.isNotEmpty()) {
-                    Text(
-                        "Video",
-                        color      = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize   = 14.sp,
-                        modifier   = Modifier.padding(bottom = 8.dp)
-                    )
+                    Text("Video", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                        modifier = Modifier.padding(bottom = 8.dp))
                     LazyColumn(
-                        modifier              = Modifier.heightIn(max = 200.dp),
-                        verticalArrangement   = Arrangement.spacedBy(6.dp)
+                        modifier            = Modifier.heightIn(max = 200.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         items(videoFormats) { format ->
                             FormatItem(
                                 format   = format,
                                 selected = selectedFormat?.formatId == format.formatId,
-                                onClick  = {
-                                    selectedFormat = format
-                                    downloadFormat = "video"
-                                }
+                                onClick  = { selectedFormat = format; downloadFormat = "video" }
                             )
                         }
                     }
@@ -585,13 +580,9 @@ fun DownloadScreen(modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth(),
                     enabled  = selectedFormat != null,
                     shape    = RoundedCornerShape(12.dp),
-                    colors   = ButtonDefaults.buttonColors(containerColor = Color.Black)
+                    colors   = ButtonDefaults.buttonColors(containerColor = Color(0xFF433C48))
                 ) {
-                    Text(
-                        "Confirmar formato",
-                        color      = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Confirmar formato", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -632,11 +623,7 @@ fun FormatItem(
                 fontSize = 12.sp
             )
             if (format.note.isNotBlank()) {
-                Text(
-                    text     = format.note,
-                    color    = Color(0x80ffffff),
-                    fontSize = 11.sp
-                )
+                Text(text = format.note, color = Color(0x80ffffff), fontSize = 11.sp)
             }
         }
         if (selected) {
