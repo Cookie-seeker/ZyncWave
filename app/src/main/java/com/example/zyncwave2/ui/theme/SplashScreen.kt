@@ -1,19 +1,20 @@
 package com.example.zyncwave2.ui.theme
 
-import android.content.Intent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import com.example.zyncwave2.R
 import com.example.zyncwave2.data.PlayerState
-import com.example.zyncwave2.presentation.MainActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -25,8 +26,8 @@ fun SplashScreen() {
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             listOf(
-                "/storage/emulated/0/Music/ZyncWave/Audio",
-                "/storage/emulated/0/Music/ZyncWave/Video"
+                "/storage/emulated/0/Download/ZyncWave/Audio",
+                "/storage/emulated/0/Download/ZyncWave/Video"
             ).forEach { path ->
                 val folder = java.io.File(path)
                 if (!folder.exists()) folder.mkdirs()
@@ -36,19 +37,30 @@ fun SplashScreen() {
         delay(2000)
         val savedFolders = loadSavedFolders(context)
         android.util.Log.d("SPLASH", "Carpetas cargadas: $savedFolders")
+
         if (savedFolders.isNotEmpty()) {
             PlayerState.selectedFolders.value = savedFolders
+        } else {
+            // Primera instalación — agregar carpeta por defecto
+            val defaultFolder = "/storage/emulated/0/Download/ZyncWave/Audio"
+            val defaultFolders = setOf(defaultFolder)
+            PlayerState.selectedFolders.value = defaultFolders
+            saveFolders(context, defaultFolders)
+            saveFirstLaunchDone(context)
         }
-        context.startActivity(Intent(context, MainActivity::class.java))
-        (context as? android.app.Activity)?.finish()
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xff191c1f)),
+        contentAlignment = Alignment.Center
+    ) {
         Image(
-            painter = painterResource(id = R.drawable.intro_pic),
-            contentDescription = null,
-            modifier = Modifier.align(Alignment.TopCenter),
-            contentScale = ContentScale.Fit,
+            painter = painterResource(R.drawable.logo),
+            contentDescription = "ZyncWave Logo",
+            modifier = Modifier.fillMaxWidth(0.5f),
+            contentScale = ContentScale.Fit
         )
     }
 }

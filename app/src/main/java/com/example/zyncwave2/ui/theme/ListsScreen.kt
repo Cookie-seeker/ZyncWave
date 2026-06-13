@@ -3,14 +3,35 @@ package com.example.zyncwave2.ui.theme
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -23,17 +44,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.zyncwave2.R
 import com.example.zyncwave2.data.FavoritesManager
+import com.example.zyncwave2.data.PlayerState
 import com.example.zyncwave2.data.PlaylistManager
 import com.example.zyncwave2.data.Songs
+import com.example.zyncwave2.presentation.PlayerViewModel
 
 @Composable
 fun ListsScreen(
     songs: List<Songs>,
-    onSongClick: (List<Songs>, Int) -> Unit
+    onSongClick: (List<Songs>, Int) -> Unit,
+    playerViewModel: PlayerViewModel? = null
 ) {
     val context = LocalContext.current
-    var selectedSection by remember { mutableStateOf<String?>(null) }
-    var selectedPlaylistId by remember { mutableStateOf<Long?>(null) }
+    val selectedSection by PlayerState.selectedSection.collectAsState()
+    val selectedPlaylistId by PlayerState.selectedPlaylistId.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
 
     val recentSongs = remember(songs.size) {
@@ -47,26 +71,31 @@ fun ListsScreen(
 
     BackHandler(enabled = selectedPlaylistId != null || selectedSection != null) {
         when {
-            selectedPlaylistId != null -> selectedPlaylistId = null
-            selectedSection != null -> selectedSection = null
+            selectedPlaylistId != null -> PlayerState.selectedPlaylistId.value = null
+            selectedSection != null    -> PlayerState.selectedSection.value = null
         }
     }
 
-        val playlists = PlaylistManager.playlists
+    val playlists = PlaylistManager.playlists
 
-    // Pantalla de playlist personalizada
+    // ── Pantalla de playlist personalizada ────────────────────────────────────
     selectedPlaylistId?.let { plId ->
         val plSongs = PlaylistManager.getSongsForPlaylist(plId, songs)
-        val plName = playlists.find { it.id == plId }?.name ?: ""
+        val plName  = playlists.find { it.id == plId }?.name ?: ""
         SectionScreen(
-            title = plName,
-            songs = plSongs,
-            onBack = { selectedPlaylistId = null },
-            onSongClick = onSongClick,
+            title    = plName,
+            songs    = plSongs,
+            onBack   = { PlayerState.selectedPlaylistId.value = null },
+            onSongClick = { list, pos ->
+                playerViewModel?.setQueueSource(
+                    PlayerState.QueueSource.PLAYLIST, plId.toString()
+                )
+                onSongClick(list, pos)
+            },
             showDelete = true,
             onDelete = {
                 PlaylistManager.deletePlaylist(context, plId)
-                selectedPlaylistId = null
+                PlayerState.selectedPlaylistId.value = null
             }
         )
         return
@@ -74,16 +103,26 @@ fun ListsScreen(
 
     when (selectedSection) {
         "recent" -> SectionScreen(
-            title = "Agregadas recientemente",
-            songs = recentSongs,
-            onBack = { selectedSection = null },
-            onSongClick = onSongClick
+            title    = "Agregadas recientemente",
+            songs    = recentSongs,
+            onBack   = { PlayerState.selectedSection.value = null },
+            onSongClick = { list, pos ->
+                playerViewModel?.setQueueSource(
+                    PlayerState.QueueSource.RECENT, ""
+                )
+                onSongClick(list, pos)
+            }
         )
         "favorites" -> SectionScreen(
-            title = "Favoritos",
-            songs = favoriteSongs,
-            onBack = { selectedSection = null },
-            onSongClick = onSongClick
+            title    = "Favoritos",
+            songs    = favoriteSongs,
+            onBack   = { PlayerState.selectedSection.value = null },
+            onSongClick = { list, pos ->
+                playerViewModel?.setQueueSource(
+                    PlayerState.QueueSource.FAVORITES, ""
+                )
+                onSongClick(list, pos)
+            }
         )
         else -> {
             Column(
@@ -97,25 +136,25 @@ fun ListsScreen(
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 22.sp,
-                    modifier = Modifier.padding(top = 44.dp, bottom = 24.dp)
+                    modifier = Modifier.statusBarsPadding().padding(bottom = 24.dp)
                 )
 
                 ListSectionCard(
-                    title = "Agregadas recientemente",
+                    title    = "Agregadas recientemente",
                     subtitle = "${recentSongs.size} canciones",
-                    icon = R.drawable.outline_more_time_24,
+                    icon     = R.drawable.outline_more_time_24,
                     iconTint = Color.Black,
-                    onClick = { selectedSection = "recent" }
+                    onClick  = { PlayerState.selectedSection.value = "recent" }
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
                 ListSectionCard(
-                    title = "Favoritos",
+                    title    = "Favoritos",
                     subtitle = "${favoriteSongs.size} canciones",
-                    icon = R.drawable.baseline_favorite_24,
+                    icon     = R.drawable.baseline_favorite_24,
                     iconTint = Color(0xFFe91e63),
-                    onClick = { selectedSection = "favorites" }
+                    onClick  = { PlayerState.selectedSection.value = "favorites" }
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -127,27 +166,39 @@ fun ListsScreen(
                 ) {
                     Text("Mis listas", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     IconButton(
-                        onClick = { showCreateDialog = true },
+                        onClick  = { showCreateDialog = true },
                         modifier = Modifier.size(36.dp).background(Color(0xFF2C2C2E), shape = CircleShape)
                     ) {
-                        Icon(painterResource(R.drawable.outline_add_24), contentDescription = null,
-                            tint = Color.White, modifier = Modifier.size(20.dp))
+                        Icon(
+                            painterResource(R.drawable.outline_add_24),
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (playlists.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
-                        contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(painterResource(R.drawable.outline_queue_music_24),
-                                contentDescription = null, tint = Color(0x60ffffff),
-                                modifier = Modifier.size(48.dp))
+                            Icon(
+                                painterResource(R.drawable.outline_queue_music_24),
+                                contentDescription = null,
+                                tint = Color(0x60ffffff),
+                                modifier = Modifier.size(48.dp)
+                            )
                             Spacer(modifier = Modifier.height(8.dp))
-                            Text("No tienes listas creadas\nToca + para crear una",
-                                color = Color(0x80ffffff), fontSize = 14.sp,
-                                textAlign = TextAlign.Center)
+                            Text(
+                                "No tienes listas creadas\nToca + para crear una",
+                                color = Color(0x80ffffff),
+                                fontSize = 14.sp,
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
                 } else {
@@ -155,11 +206,11 @@ fun ListsScreen(
                         items(playlists) { playlist ->
                             val count = playlist.songIds.size
                             ListSectionCard(
-                                title = playlist.name,
+                                title    = playlist.name,
                                 subtitle = "$count canción${if (count != 1) "es" else ""}",
-                                icon = R.drawable.outline_queue_music_24,
+                                icon     = R.drawable.outline_queue_music_24,
                                 iconTint = Color.Black,
-                                onClick = { selectedPlaylistId = playlist.id }
+                                onClick  = { PlayerState.selectedPlaylistId.value = playlist.id }
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                         }
@@ -169,11 +220,10 @@ fun ListsScreen(
         }
     }
 
-    // Dialog crear lista
     if (showCreateDialog) {
         CreatePlaylistDialog(
             onDismiss = { showCreateDialog = false },
-            onCreate = { name ->
+            onCreate  = { name ->
                 PlaylistManager.createPlaylist(context, name)
                 showCreateDialog = false
             }
@@ -200,9 +250,9 @@ fun CreatePlaylistDialog(
                 onValueChange = { name = it },
                 placeholder = { Text("Nombre de la lista", color = Color(0x80ffffff)) },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedBorderColor = Color.White,
+                    focusedTextColor     = Color.White,
+                    unfocusedTextColor   = Color.White,
+                    focusedBorderColor   = Color.White,
                     unfocusedBorderColor = Color(0x50ffffff)
                 ),
                 singleLine = true,
@@ -211,8 +261,8 @@ fun CreatePlaylistDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { if (name.isNotBlank()) onCreate(name.trim()) },
-                enabled = name.isNotBlank()
+                onClick  = { if (name.isNotBlank()) onCreate(name.trim()) },
+                enabled  = name.isNotBlank()
             ) {
                 Text("Crear", color = Color.White, fontWeight = FontWeight.Bold)
             }
@@ -242,12 +292,15 @@ fun ListSectionCard(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(48.dp)
+            modifier = Modifier
+                .size(48.dp)
                 .background(Color(0x30ffffff), shape = RoundedCornerShape(10.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(painterResource(icon), contentDescription = null,
-                tint = iconTint, modifier = Modifier.size(28.dp))
+            Icon(
+                painterResource(icon), contentDescription = null,
+                tint = iconTint, modifier = Modifier.size(28.dp)
+            )
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column {
@@ -255,8 +308,12 @@ fun ListSectionCard(
             Text(subtitle, color = Color(0xffbbbbbb), fontSize = 13.sp)
         }
         Spacer(modifier = Modifier.weight(1f))
-        Icon(painterResource(R.drawable.outline_arrow_back_ios_new_24),
-            contentDescription = null, tint = Color(0x80ffffff), modifier = Modifier.size(16.dp))
+        Icon(
+            painterResource(R.drawable.outline_arrow_back_ios_new_24),
+            contentDescription = null,
+            tint = Color(0x80ffffff),
+            modifier = Modifier.size(16.dp)
+        )
     }
 }
 
@@ -272,24 +329,34 @@ fun SectionScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
             .background(Brush.verticalGradient(listOf(Color(0xff191c1f), Color(0xff2c2c38))))
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 48.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(painterResource(R.drawable.outline_arrow_back_ios_new_24),
-                    contentDescription = null, tint = Color.White)
+                Icon(
+                    painterResource(R.drawable.outline_arrow_back_ios_new_24),
+                    contentDescription = null, tint = Color.White
+                )
             }
-            Text(title, color = Color.White, fontWeight = FontWeight.Bold,
-                fontSize = 18.sp, modifier = Modifier.weight(1f).padding(start = 8.dp))
+            Text(
+                title, color = Color.White, fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                modifier = Modifier.weight(1f).padding(start = 8.dp)
+            )
             if (showDelete && onDelete != null) {
                 IconButton(onClick = { showDeleteConfirm = true }) {
-                    Icon(painterResource(R.drawable.outline_delete_24),
-                        contentDescription = "Eliminar lista", tint = Color(0xFFe91e63))
+                    Icon(
+                        painterResource(R.drawable.outline_delete_24),
+                        contentDescription = "Eliminar lista",
+                        tint = Color(0xFFe91e63)
+                    )
                 }
             }
         }
@@ -306,9 +373,13 @@ fun SectionScreen(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            containerColor = Color(0xff2c2c38),
-            title = { Text("Eliminar lista", color = Color.White, fontWeight = FontWeight.Bold) },
-            text = { Text("¿Seguro que quieres eliminar esta lista?", color = Color(0xffbbbbbb)) },
+            containerColor   = Color(0xff2c2c38),
+            title = {
+                Text("Eliminar lista", color = Color.White, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("¿Seguro que quieres eliminar esta lista?", color = Color(0xffbbbbbb))
+            },
             confirmButton = {
                 TextButton(onClick = { showDeleteConfirm = false; onDelete?.invoke() }) {
                     Text("Eliminar", color = Color(0xFFe91e63), fontWeight = FontWeight.Bold)

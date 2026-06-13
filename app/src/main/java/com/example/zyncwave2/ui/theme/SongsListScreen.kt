@@ -1,15 +1,31 @@
 package com.example.zyncwave2.ui.theme
 
-import com.example.zyncwave2.data.getSongs
 import android.Manifest
 import android.content.ContentUris
 import android.net.Uri
 import android.os.Build
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,6 +39,8 @@ import coil.compose.AsyncImage
 import com.example.zyncwave2.R
 import com.example.zyncwave2.data.PlayerState
 import com.example.zyncwave2.data.Songs
+import com.example.zyncwave2.data.getSongs
+import com.example.zyncwave2.presentation.PlayerViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -34,10 +52,16 @@ fun SongsListScreen(
     currentTab: Int,
     onTabChange: (Int) -> Unit,
     onSongClick: (songs: List<Songs>, position: Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    playerViewModel: PlayerViewModel? = null
 ) {
     val context = LocalContext.current
-    val songsState = remember { mutableStateOf<List<Songs>>(emptyList()) }
+
+    // Observa PlayerState.songsList reactivamente — se recompone cuando DownloadService lo actualiza
+    val songsState by PlayerState.songsList.collectAsState()
+
+
+
 
     val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         Manifest.permission.READ_MEDIA_AUDIO
@@ -47,17 +71,11 @@ fun SongsListScreen(
 
     val permissionState = rememberPermissionState(permission)
 
-    LaunchedEffect(
-        key1 = permissionState.status,
-        key2 = PlayerState.selectedFolders.value,
-        key3 = PlayerState.songsList.value
-    ) {
+    // Solo carga canciones si la lista está vacía o cambia la carpeta seleccionada
+    LaunchedEffect(permissionState.status, PlayerState.selectedFolders.value) {
         if (permissionState.status.isGranted) {
             val songs = getSongs(context, PlayerState.selectedFolders.value)
-            songsState.value = songs
-            if (PlayerState.songsList.value.isEmpty()) {
-                PlayerState.songsList.value = songs
-            }
+            PlayerState.songsList.value = songs
         }
     }
 
@@ -65,6 +83,7 @@ fun SongsListScreen(
         modifier = modifier
             .fillMaxSize()
             .padding(innerPadding)
+            .statusBarsPadding()
             .background(Color(0xff191c1f))
     ) {
         if (!permissionState.status.isGranted) {
@@ -76,25 +95,34 @@ fun SongsListScreen(
         } else {
             when (currentTab) {
                 1 -> SongsList(
-                    songs = songsState.value,
-                    onSongClick = { pos -> onSongClick(songsState.value, pos) },
+                    songs = songsState,
+                    onSongClick = { pos ->
+                        playerViewModel?.setQueueSource(
+                            PlayerState.QueueSource.ALL_SONGS, ""
+                        )
+                        onSongClick(songsState, pos)
+                    },
                     modifier = Modifier.fillMaxSize()
                 )
                 2 -> ListsScreen(
-                    songs = songsState.value,
-                    onSongClick = onSongClick
+                    songs           = songsState,
+                    onSongClick     = onSongClick,
+                    playerViewModel = playerViewModel
                 )
                 3 -> ArtistScreen(
-                    songs = songsState.value,
-                    onSongClick = onSongClick
+                    songs           = songsState,
+                    onSongClick     = onSongClick,
+                    playerViewModel = playerViewModel
                 )
                 4 -> AlbumScreen(
-                    songs = songsState.value,
-                    onSongClick = onSongClick
+                    songs           = songsState,
+                    onSongClick     = onSongClick,
+                    playerViewModel = playerViewModel
                 )
                 5 -> FolderScreen(
-                    songs = songsState.value,
-                    onSongClick = onSongClick
+                    songs           = songsState,
+                    onSongClick     = onSongClick,
+                    playerViewModel = playerViewModel
                 )
             }
         }
