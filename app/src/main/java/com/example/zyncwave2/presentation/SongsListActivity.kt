@@ -1,3 +1,5 @@
+//IMPORTANT: Do not use; the method of use has changed
+
 package com.example.zyncwave2.presentation
 
 import android.os.Build
