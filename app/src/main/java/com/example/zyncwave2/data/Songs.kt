@@ -10,5 +10,8 @@ data class Songs(
     val artists: String?,
     val data: String,
     val albumId: Long,
-    val albumName: String?
+    val albumName: String?,
+    val genre: String? = null,
+    val trackNumber: Int? = null,
+    val discNumber: Int? = null
 ): Parcelable
