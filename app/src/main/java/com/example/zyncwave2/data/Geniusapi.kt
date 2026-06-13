@@ -16,7 +16,7 @@ import java.net.URLEncoder
 object GeniusApi {
 
     private const val BASE_URL    = "https://api.genius.com"
-    private const val TOKEN       = "-fe7kM85wiTnXz1VL-s8M4CQR-SfHzVGX_tY0J0lKehnxR13aTwGv2zOgGrrLf21"
+    private const val TOKEN       = // Create your own API at: https://genius.com/api-clients/new
     private const val TIMEOUT     = 15000
     private const val MAX_RETRY   = 3
     private const val RETRY_DELAY = 1500L
@@ -28,7 +28,7 @@ object GeniusApi {
         val albumName: String,
         val url: String,
         val plainLyrics: String?,
-        val syncedLyrics: String?    // Genius no tiene LRC — siempre null
+        val syncedLyrics: String?
     )
 
     /**
