@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/tab_playing"  android:icon="@drawable/outline_play_circle_24"  android:title="Playing" />
+    <item android:id="@+id/tab_songs"    android:icon="@drawable/outline_library_music_24" android:title="Songs" />
+    <item android:id="@+id/tab_lists"    android:icon="@drawable/outline_queue_music_24"   android:title="Lists" />
+    <item android:id="@+id/tab_artists"  android:icon="@drawable/outline_artist_24"        android:title="Artists" />
+    <item android:id="@+id/tab_albums"   android:icon="@drawable/outline_album_24"         android:title="Albums" />
+    <item android:id="@+id/tab_folders"  android:icon="@drawable/outline_folder_24"        android:title="Folders" />
+    <item android:id="@+id/tab_download" android:icon="@drawable/outline_download_24"      android:title="DL" />
+</menu>
