@@ -3,7 +3,6 @@ package com.example.zyncwave2.presentation
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import com.example.zyncwave2.data.PlayerState
@@ -49,8 +48,14 @@ class SplashActivity : ComponentActivity() {
             }
 
             withContext(Dispatchers.Main) {
-                isLoading = false  // ← oculta el splash
-                startActivity(Intent(this@SplashActivity, MainActivity::class.java))
+                isLoading = false
+                val savedFolders = loadSavedFolders(this@SplashActivity)
+                if (savedFolders.isEmpty()) {
+                    // Primera vez — ir al onboarding
+                    startActivity(Intent(this@SplashActivity, OnboardingActivity::class.java))
+                } else {
+                    startActivity(Intent(this@SplashActivity, MainActivity::class.java))
+                }
                 finish()
             }
         }
