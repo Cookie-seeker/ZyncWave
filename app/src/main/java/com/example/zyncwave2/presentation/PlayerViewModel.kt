@@ -19,9 +19,11 @@ import com.example.zyncwave2.data.MetadataRepository
 import com.example.zyncwave2.data.PlayerState
 import com.example.zyncwave2.data.PlayerUiState
 import com.example.zyncwave2.data.RepeatMode
+import com.example.zyncwave2.data.SongRepository
 import com.example.zyncwave2.data.Songs
 import com.example.zyncwave2.data.WriteResult
 import com.example.zyncwave2.data.db.AppDatabase
+import com.example.zyncwave2.ui.theme.artCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,17 +40,14 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(PlayerUiState())
     val state = _state.asStateFlow()
 
-
-    //ExoPlayer listener
+    // ── ExoPlayer listener ────────────────────────────────────────────────────
 
     private val playerListener = object : Player.Listener {
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _state.update { it.copy(isPlaying = isPlaying) }
-            // Sincronizar con PlayerState para que MusicService lo vea
             PlayerState.isPlaying.value = isPlaying
         }
-
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             val player = PlayerState.exoPlayer ?: return
@@ -63,7 +62,6 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             val player = PlayerState.exoPlayer ?: return
             val realIndex = player.currentMediaItemIndex
-            // Traducir índice real de ExoPlayer al índice en activeList
             val song = _state.value.songsList.getOrNull(realIndex) ?: return
             val activeIndex = _state.value.activeList.indexOfFirst { it.data == song.data }
                 .takeIf { it >= 0 } ?: realIndex
@@ -76,8 +74,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     init {
         PlayerState.exoPlayer?.addListener(playerListener)
         startPositionTicker()
-        viewModelScope.launch {
 
+        viewModelScope.launch {
             snapshotFlow { FavoritesManager.favoriteIds.toList() }
                 .collect {
                     val song = _state.value.currentSong ?: return@collect
@@ -86,50 +84,109 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
         }
+
+        // Command bus — NotificationReceiver → ViewModel
+        viewModelScope.launch {
+            PlayerState.pendingCommand.collect { command ->
+                command ?: return@collect
+                when (command) {
+                    is PlayerState.PlayerCommand.PlayPause      -> togglePlaying()
+                    is PlayerState.PlayerCommand.Next           -> next()
+                    is PlayerState.PlayerCommand.Prev           -> prev()
+                    is PlayerState.PlayerCommand.ToggleFavorite -> toggleFavorite()
+                }
+                PlayerState.pendingCommand.value = null
+            }
+        }
     }
 
-    // Ticker de posición
-    // Actualiza elapsed cada 200ms mientras está reproduciendo.
-    // Equivalente al tick de MediaPlayer en Auxio.
+    // ── Ticker de posición ────────────────────────────────────────────────────
+
     private fun startPositionTicker() {
         viewModelScope.launch {
+            var ticksSinceLastSave = 0
             while (true) {
                 delay(200)
                 val player = PlayerState.exoPlayer ?: continue
                 if (player.isPlaying) {
                     val pos = player.currentPosition
                     _state.update { it.copy(elapsed = pos) }
-                    if (pos > 0) PlayerState.saveLastSession(
-                        context, pos,
-                        _state.value.queueSource,
-                        _state.value.queueSourceId
-                    )
+                    ticksSinceLastSave++
+                    if (pos > 0 && ticksSinceLastSave >= 25) {
+                        PlayerState.saveLastSession(
+                            context, pos,
+                            _state.value.queueSource,
+                            _state.value.queueSourceId
+                        )
+                        ticksSinceLastSave = 0
+                    }
                 }
             }
         }
     }
 
+    // ── Queue source ──────────────────────────────────────────────────────────
+
     fun setQueueSource(source: PlayerState.QueueSource, sourceId: String) {
         _state.update { it.copy(queueSource = source, queueSourceId = sourceId) }
     }
 
-    //Inicializar lista de reproducción
+    // ── Preload — muestra UI sin esperar ExoPlayer ────────────────────────────
 
     /**
-     * Llamado desde PlayerScreen cuando se abre el reproductor.
-     * Carga la lista, posiciona en el índice correcto y arranca.
-     * Equivalente a PlaybackViewModel.play(queue, index) en Auxio.
+     * Setea metadata de la canción en el state SIN tocar ExoPlayer.
+     * Llamado desde MainActivity al restaurar sesión para que PlayerScreen
+     * aparezca inmediatamente mientras ExoPlayer se inicializa en background.
+     *
+     * El flujo es:
+     *   1. preloadSongMeta() → UI visible al instante
+     *   2. initPlaybackRestored() → ExoPlayer listo, audio conectado
      */
+    fun preloadSongMeta(songsList: List<Songs>, index: Int) {
+        val song = songsList.getOrNull(index) ?: return
+        _state.update {
+            it.copy(
+                songsList    = songsList,
+                currentIndex = index,
+                currentSong  = song
+            )
+        }
+        PlayerState.currentSong.value  = song
+        PlayerState.currentIndex.value = index
+
+        // Letra y favorito en background — no bloquean la UI
+        viewModelScope.launch(Dispatchers.IO) {
+            // Bitmap PRIMERO — antes de que el tab 0 sea visible
+            try {
+                val retriever = android.media.MediaMetadataRetriever()
+                retriever.setDataSource(song.data)
+                val art = retriever.embeddedPicture
+                retriever.release()
+                if (art != null) {
+                    val bitmap = android.graphics.BitmapFactory
+                        .decodeByteArray(art, 0, art.size)
+                    artCache.put(song.data, bitmap)
+                }
+            } catch (e: Exception) { }
+
+            // Letra y favorito después
+            val lyrics   = LyricsManager.loadLyrics(context, song.id)
+            val favorite = FavoritesManager.isFavorite(song.id)
+            _state.update {
+                it.copy(currentLyrics = lyrics, isFavorite = favorite)
+            }
+        }
+    }
+
+    // ── Inicializar reproducción ──────────────────────────────────────────────
+
     @OptIn(UnstableApi::class)
     fun initPlayback(songsList: List<Songs>, initialIndex: Int) {
-        val player = PlayerState.exoPlayer ?: return
+        val player  = PlayerState.exoPlayer ?: return
         val current = _state.value
 
-        // Si ya tenemos la misma lista cargada, solo posicionar
         if (current.songsList == songsList && player.mediaItemCount == songsList.size) {
-            if (current.currentIndex != initialIndex) {
-                seekToRealIndex(initialIndex)
-            }
+            if (current.currentIndex != initialIndex) seekToRealIndex(initialIndex)
             return
         }
 
@@ -160,11 +217,25 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
         updateSongMeta(initialIndex)
 
-        // Inicializar ecualizador
         val audioSessionId = player.audioSessionId
         if (audioSessionId != 0) EqualizerManager.init(audioSessionId)
-    }
 
+        // Precalentar caché de carátula en background
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val retriever = android.media.MediaMetadataRetriever()
+                retriever.setDataSource(songsList[initialIndex].data)
+                val art = retriever.embeddedPicture
+                retriever.release()
+                if (art != null) {
+                    val bitmap = android.graphics.BitmapFactory
+                        .decodeByteArray(art, 0, art.size)
+                    com.example.zyncwave2.ui.theme.artCache
+                        .put(songsList[initialIndex].data, bitmap)
+                }
+            } catch (e: Exception) { /* no crítico */ }
+        }
+    }
 
     @OptIn(UnstableApi::class)
     fun initPlaybackRestored(songsList: List<Songs>, initialIndex: Int, positionMs: Long) {
@@ -173,10 +244,6 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(songsList = songsList, currentIndex = initialIndex) }
 
         val mediaItems = songsList.map { s ->
-            val artUri = ContentUris.withAppendedId(
-                Uri.parse("content://media/external/audio/albumart"),
-                s.albumId
-            )
             MediaItem.Builder()
                 .setUri(s.data)
                 .setMediaMetadata(
@@ -184,47 +251,61 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                         .setTitle(s.title)
                         .setArtist(s.artists)
                         .setAlbumTitle(s.albumName)
-                        .setArtworkUri(artUri)
+                        .setArtworkUri(
+                            ContentUris.withAppendedId(
+                                Uri.parse("content://media/external/audio/albumart"),
+                                s.albumId
+                            )
+                        )
                         .build()
                 )
                 .build()
         }
 
-        player.setMediaItems(mediaItems, initialIndex, positionMs) // ← posición directamente aquí
+        player.setMediaItems(mediaItems, initialIndex, positionMs)
         player.prepare()
-        // ← NO player.play()
+        // NO player.play() — queda pausado en la posición guardada
 
         updateSongMeta(initialIndex)
 
         val audioSessionId = player.audioSessionId
         if (audioSessionId != 0) EqualizerManager.init(audioSessionId)
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val retriever = android.media.MediaMetadataRetriever()
+                retriever.setDataSource(songsList[initialIndex].data)
+                val art = retriever.embeddedPicture
+                retriever.release()
+                if (art != null) {
+                    val bitmap = android.graphics.BitmapFactory
+                        .decodeByteArray(art, 0, art.size)
+                    artCache.put(songsList[initialIndex].data, bitmap)
+                }
+            } catch (e: Exception) { }
+        }
+
+
     }
 
+    // ── Controles de reproducción ─────────────────────────────────────────────
 
-
-    // ── Acciones de control — equivalentes a PlaybackViewModel  ───────
-
-    /** Alterna play/pausa */
     fun togglePlaying() {
         val player = PlayerState.exoPlayer ?: return
         if (player.isPlaying) player.pause() else player.play()
     }
 
-    /** Saltar a la siguiente canción */
     fun next() {
         val list = _state.value.activeList
         if (list.isEmpty()) return
-        val newIndex = (_state.value.currentIndex + 1) % list.size
-        val song = list[newIndex]
-        // Traducir al índice real en ExoPlayer (que siempre tiene songsList)
+        val newIndex  = (_state.value.currentIndex + 1) % list.size
+        val song      = list[newIndex]
         val realIndex = _state.value.songsList.indexOfFirst { it.data == song.data }
             .coerceAtLeast(0)
         _state.update { it.copy(currentIndex = newIndex) }
         seekToRealIndex(realIndex)
     }
 
-
-    /** Saltar a la canción anterior */
     fun prev() {
         val player = PlayerState.exoPlayer ?: return
         if (player.currentPosition > 3000L) {
@@ -235,20 +316,18 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         if (list.isEmpty()) return
         val newIndex = if (_state.value.currentIndex - 1 < 0) list.size - 1
         else _state.value.currentIndex - 1
-        val song = list[newIndex]
+        val song      = list[newIndex]
         val realIndex = _state.value.songsList.indexOfFirst { it.data == song.data }
             .coerceAtLeast(0)
         _state.update { it.copy(currentIndex = newIndex) }
         seekToRealIndex(realIndex)
     }
 
-    /** Buscar posición en la canción actual */
     fun seekTo(positionMs: Long) {
         PlayerState.exoPlayer?.seekTo(positionMs)
         _state.update { it.copy(elapsed = positionMs) }
     }
 
-    /** Cicla entre modos de repetición: NONE → ONE → ALL → NONE */
     fun toggleRepeatMode() {
         val next = when (_state.value.repeatMode) {
             RepeatMode.NONE -> RepeatMode.ONE
@@ -263,33 +342,29 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Alterna shuffle */
     fun toggleShuffle() {
-        val current = _state.value
+        val current   = _state.value
         val newShuffle = !current.isShuffle
-
         if (newShuffle) {
             val currentSong = current.currentSong
-            val others = current.songsList.filter { it.data != currentSong?.data }.shuffled()
+            val others  = current.songsList.filter { it.data != currentSong?.data }.shuffled()
             val shuffled = if (currentSong != null) listOf(currentSong) + others else others
             _state.update { it.copy(isShuffle = true, shuffledList = shuffled, currentIndex = 0) }
         } else {
             val currentSongData = current.currentSong?.data
-            val originalIndex = current.songsList.indexOfFirst { it.data == currentSongData }
+            val originalIndex   = current.songsList.indexOfFirst { it.data == currentSongData }
                 .coerceAtLeast(0)
             _state.update { it.copy(isShuffle = false, shuffledList = emptyList(), currentIndex = originalIndex) }
         }
-        // ExoPlayer NO se toca — sigue con songsList en orden original
     }
 
-    /** Alterna favorito de la canción actual */
     fun toggleFavorite() {
         val song = _state.value.currentSong ?: return
         FavoritesManager.toggleFavorite(context, song.id)
         _state.update { it.copy(isFavorite = FavoritesManager.isFavorite(song.id)) }
     }
 
-    //Dialogs / UI flags
+    // ── Dialogs / UI flags ────────────────────────────────────────────────────
 
     fun setShowMenu(show: Boolean)          = _state.update { it.copy(showMenu = show) }
     fun setShowLyrics(show: Boolean)        = _state.update { it.copy(showLyrics = show) }
@@ -302,6 +377,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         PlayerState.showQueue.value = show
     }
 
+    // ── Letras ────────────────────────────────────────────────────────────────
 
     fun saveLyrics(lyrics: String) {
         val song = _state.value.currentSong ?: return
@@ -311,14 +387,14 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(currentLyrics = lyrics, showLyricsEditor = false) }
     }
 
-    //Tag editor
+    // ── Tag editor ────────────────────────────────────────────────────────────
 
     fun onTagsSaved(
         newTitle: String, newArtist: String, newAlbum: String,
         newGenre: String, newTrackNumber: Int, newDiscNumber: Int
     ) {
         val current = _state.value
-        val song = current.currentSong ?: return
+        val song    = current.currentSong ?: return
 
         val updatedSong = song.copy(
             title       = newTitle,
@@ -336,14 +412,15 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             if (it.data == song.data) updatedSong else it
         }
 
-        // Todo sincrónico, sin coroutines, sin tocar ExoPlayer
-        _state.update { it.copy(
-            currentSong   = updatedSong,
-            songsList     = updatedSongsList,
-            shuffledList  = updatedShuffled,
-            showTagEditor = false,
-            imageVersion  = it.imageVersion + 1
-        )}
+        _state.update {
+            it.copy(
+                currentSong  = updatedSong,
+                songsList    = updatedSongsList,
+                shuffledList = updatedShuffled,
+                showTagEditor = false,
+                imageVersion  = it.imageVersion + 1
+            )
+        }
 
         PlayerState.currentSong.value = updatedSong
         PlayerState.songsList.value   = updatedSongsList
@@ -361,16 +438,16 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         artworkUri: android.net.Uri?,
         onResult: (WriteResult) -> Unit
     ) {
-        val player = PlayerState.exoPlayer
+        val player     = PlayerState.exoPlayer
         val wasPlaying = player?.isPlaying == true
-        val position = player?.currentPosition ?: 0L
+        val position   = player?.currentPosition ?: 0L
         val currentIdx = player?.currentMediaItemIndex ?: 0
 
         player?.pause()
 
         viewModelScope.launch {
             val metaRepo = MetadataRepository(context)
-            val result = metaRepo.saveTags(
+            val result   = metaRepo.saveTags(
                 songId      = songId,
                 filePath    = filePath,
                 title       = title,
@@ -385,7 +462,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             if (result is WriteResult.Success) {
                 player?.let {
                     it.stop()
-                    kotlinx.coroutines.delay(300)
+                    delay(300)
                     it.prepare()
                     it.seekTo(currentIdx, position)
                     if (wasPlaying) it.play()
@@ -401,13 +478,12 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    //Rescan biblioteca
+    // ── Biblioteca ────────────────────────────────────────────────────────────
 
     fun rescanLibrary() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                com.example.zyncwave2.data.SongRepository(context)
-                    .fullScan(PlayerState.selectedFolders.value)
+                SongRepository(context).fullScan(PlayerState.selectedFolders.value)
             }
             val updatedSongs = withContext(Dispatchers.IO) {
                 AppDatabase.getInstance(context).songDao()
@@ -424,22 +500,33 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    //Helpers privados
+    private var lastSyncedFoldersHash = Int.MIN_VALUE
+
+    fun syncLibrary() {
+        val hash = PlayerState.selectedFolders.value.hashCode()
+        if (hash == lastSyncedFoldersHash) return
+        lastSyncedFoldersHash = hash
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                SongRepository(context).syncWithDisk(PlayerState.selectedFolders.value)
+            }
+        }
+    }
+
+    // ── Helpers privados ──────────────────────────────────────────────────────
 
     private fun seekToRealIndex(realIndex: Int) {
         val player = PlayerState.exoPlayer ?: return
         player.seekTo(realIndex, 0L)
         player.play()
-        updateSongMeta(_state.value.currentIndex) // usa el índice de activeList para metadata
+        updateSongMeta(_state.value.currentIndex)
         PlayerState.currentIndex.value = _state.value.currentIndex
-        PlayerState.saveLastSession(context, 0L)
     }
 
     private fun onIndexChanged(index: Int) {
         _state.update { it.copy(currentIndex = index, elapsed = 0L) }
         updateSongMeta(index)
         PlayerState.currentIndex.value = index
-        PlayerState.saveLastSession(context, 0L)
     }
 
     private fun updateSongMeta(index: Int) {
@@ -447,16 +534,19 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         val song = list.getOrNull(index) ?: return
 
         viewModelScope.launch {
-            val lyrics   = withContext(Dispatchers.IO) { LyricsManager.loadLyrics(context, song.id) }
+            val lyrics   = withContext(Dispatchers.IO) {
+                LyricsManager.loadLyrics(context, song.id)
+            }
             val favorite = FavoritesManager.isFavorite(song.id)
-            _state.update { it.copy(
-                currentSong   = song,
-                currentLyrics = lyrics,
-                isFavorite    = favorite,
-                showLyrics    = false
-            )}
-            // Sincronizar con PlayerState para MusicService
-            PlayerState.currentSong.value = song
+            _state.update {
+                it.copy(
+                    currentSong   = song,
+                    currentLyrics = lyrics,
+                    isFavorite    = favorite,
+                    showLyrics    = false
+                )
+            }
+            PlayerState.currentSong.value  = song
             PlayerState.currentIndex.value = index
         }
     }
@@ -464,22 +554,16 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private fun handleSongEnded() {
         val list = _state.value.activeList
         when (_state.value.repeatMode) {
-            RepeatMode.ONE -> {
-                // ExoPlayer ya lo maneja con REPEAT_MODE_ONE
-            }
-            RepeatMode.ALL -> {
-                next()
-            }
+            RepeatMode.ONE  -> { /* ExoPlayer maneja REPEAT_MODE_ONE */ }
+            RepeatMode.ALL  -> next()
             RepeatMode.NONE -> {
                 val isLast = _state.value.currentIndex >= list.size - 1
                 if (isLast) {
-                    // Fin de cola — volver al inicio pausado
                     val player = PlayerState.exoPlayer ?: return
                     _state.update { it.copy(currentIndex = 0, elapsed = 0L) }
                     player.seekTo(0, 0L)
                     player.pause()
                     updateSongMeta(0)
-                    // Mostrar snackbar — necesitas exponerlo como StateFlow
                     _state.update { it.copy(queueEndedEvent = true) }
                 } else {
                     next()
@@ -488,7 +572,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-
+    // ── Back handler ──────────────────────────────────────────────────────────
 
     fun handleBack(): Boolean {
         return when {
@@ -504,8 +588,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun playFromQueue(index: Int) {
-        val list = _state.value.activeList
-        val song = list.getOrNull(index) ?: return
+        val list      = _state.value.activeList
+        val song      = list.getOrNull(index) ?: return
         val realIndex = _state.value.songsList.indexOfFirst { it.data == song.data }
             .coerceAtLeast(0)
         _state.update { it.copy(currentIndex = index) }
@@ -516,7 +600,6 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun consumeQueueEndedEvent() {
         _state.update { it.copy(queueEndedEvent = false) }
     }
-
 
     override fun onCleared() {
         PlayerState.exoPlayer?.removeListener(playerListener)

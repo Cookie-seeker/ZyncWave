@@ -18,6 +18,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        android.util.Log.d("PERF", "App.onCreate START: ${System.currentTimeMillis()}")
 
         // Inicializar yt-dlp y ffmpeg en hilo IO para no bloquear el main thread
         // y para que la actualización no interfiera con las primeras llamadas
@@ -63,11 +64,13 @@ class App : Application() {
         }
 
         startService(android.content.Intent(this, MusicService::class.java))
+        android.util.Log.d("PERF", "App.onCreate startService: ${System.currentTimeMillis()}")
 
         FavoritesManager.init(this)
         PlaylistManager.init(this)
 
         createAppFolders()
+        android.util.Log.d("PERF", "App.onCreate END: ${System.currentTimeMillis()}")
     }
 
 
