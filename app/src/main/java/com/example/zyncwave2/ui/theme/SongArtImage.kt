@@ -20,7 +20,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 
-private val artCache = LruCache<String, Bitmap>(200)
+internal val artCache = object : LruCache<String, Bitmap>(
+    (Runtime.getRuntime().maxMemory() / 8).toInt()
+) {
+    override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
+}
 
 @Composable
 fun SongArtImage(
@@ -33,7 +37,7 @@ fun SongArtImage(
     }
 
     LaunchedEffect(data) {
-        if (artCache.get(data) == null && bitmap == null) {
+        if (artCache.get(data) == null) {
             val loaded = withContext(Dispatchers.IO) {
                 try {
                     val retriever = MediaMetadataRetriever()
@@ -43,8 +47,10 @@ fun SongArtImage(
                     if (art != null) BitmapFactory.decodeByteArray(art, 0, art.size) else null
                 } catch (e: Exception) { null }
             }
-            if (loaded != null) artCache.put(data, loaded)
-            bitmap = loaded
+            if (loaded != null) {
+                artCache.put(data, loaded)
+                bitmap = loaded
+            }
         }
     }
 

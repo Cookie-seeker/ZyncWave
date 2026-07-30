@@ -1,3 +1,4 @@
+/*
 package com.example.zyncwave2.ui.theme
 
 import androidx.compose.foundation.Image
@@ -64,3 +65,4 @@ fun SplashScreen() {
         )
     }
 }
+*/

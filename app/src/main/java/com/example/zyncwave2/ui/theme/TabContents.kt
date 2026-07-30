@@ -34,29 +34,46 @@ fun PlayerTabContent(playerViewModel: PlayerViewModel) {
     val playerState by playerViewModel.state.collectAsState()
 
     if (playerState.currentSong == null) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xff191c1f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+        // Verificar si hay una sesión en PlayerState que aún no llegó al ViewModel.
+        // Si PlayerState tiene canción, estamos en el estado transitorio del inicio —
+        // mostrar fondo negro limpio en lugar del placeholder con ícono.
+        // Si PlayerState tampoco tiene canción, es primera vez o sesión limpia.
+        val hasSessionPending = PlayerState.currentSong.collectAsState().value != null
+
+        if (hasSessionPending) {
+            // Estado transitorio — sesión restaurada pero Compose aún no procesó el state
+            // Mostrar fondo limpio, en milisegundos aparecerá el player real
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xff191c1f))
+            )
+        } else {
+            // Sin sesión — primera vez o sesión limpia, mostrar estado vacío real
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xff191c1f)),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    painterResource(R.drawable.outline_play_circle_24),
-                    contentDescription = null,
-                    tint = Color(0x40ffffff),
-                    modifier = Modifier.size(64.dp)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    "No hay canción reproduciéndose",
-                    color = Color(0x80ffffff),
-                    fontSize = 15.sp,
-                    textAlign = TextAlign.Center
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        painterResource(R.drawable.outline_play_circle_24),
+                        contentDescription = null,
+                        tint = Color(0x40ffffff),
+                        modifier = Modifier.size(64.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        "No hay canción reproduciéndose",
+                        color = Color(0x80ffffff),
+                        fontSize = 15.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
         }
     }
@@ -64,7 +81,7 @@ fun PlayerTabContent(playerViewModel: PlayerViewModel) {
     AnimatedVisibility(
         visible = playerState.currentSong != null,
         enter = fadeIn(animationSpec = tween(200)),
-        exit = fadeOut(animationSpec = tween(200))
+        exit  = fadeOut(animationSpec = tween(200))
     ) {
         PlayerScreen(
             songsList    = playerState.songsList,

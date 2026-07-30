@@ -39,7 +39,6 @@ import coil.compose.AsyncImage
 import com.example.zyncwave2.R
 import com.example.zyncwave2.data.PlayerState
 import com.example.zyncwave2.data.Songs
-import com.example.zyncwave2.data.getSongs
 import com.example.zyncwave2.presentation.PlayerViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -74,8 +73,8 @@ fun SongsListScreen(
     // Solo carga canciones si la lista está vacía o cambia la carpeta seleccionada
     LaunchedEffect(permissionState.status, PlayerState.selectedFolders.value) {
         if (permissionState.status.isGranted) {
-            val songs = getSongs(context, PlayerState.selectedFolders.value)
-            PlayerState.songsList.value = songs
+
+            playerViewModel?.syncLibrary()
         }
     }
 

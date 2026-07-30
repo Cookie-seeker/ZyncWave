@@ -2,6 +2,7 @@ package com.example.zyncwave2.ui.theme
 
 import android.app.Activity
 import android.content.ContentUris
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
@@ -87,7 +88,9 @@ import com.example.zyncwave2.data.PlaylistManager
 import com.example.zyncwave2.data.RepeatMode
 import com.example.zyncwave2.data.Songs
 import com.example.zyncwave2.presentation.PlayerViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -297,17 +300,12 @@ fun PlayerScreen(
                                 .background(Color(0x20ffffff)),
                             contentAlignment = Alignment.Center
                         ) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data(ContentUris.withAppendedId(
-                                        Uri.parse("content://media/external/audio/albumart"),
-                                        queueSong.albumId
-                                    )).build(),
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp)),
-                                contentScale = ContentScale.Crop,
-                                error = painterResource(R.drawable.baseline_music_note_24),
-                                placeholder = painterResource(R.drawable.baseline_music_note_24)
+                            SongArtImage(
+                                data     = queueSong.data,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(RoundedCornerShape(6.dp)),
+                                errorRes = R.drawable.baseline_music_note_24
                             )
                             if (isActive) {
                                 Box(
@@ -375,19 +373,26 @@ fun PlayerScreen(
             if (song != null) {
 
                 // ── Fondo blur ────────────────────────────────────────────────
-                val artBitmap = remember(song.data, s.imageVersion) {
-                    try {
-                        val retriever = MediaMetadataRetriever()
-                        retriever.setDataSource(song.data)
-                        val art = retriever.embeddedPicture
-                        retriever.release()
-                        if (art != null) BitmapFactory.decodeByteArray(art, 0, art.size) else null
-                    } catch (e: Exception) { null }
+                var artBitmap by remember(song.data, s.imageVersion) {
+                    mutableStateOf<Bitmap?>(null)
                 }
 
-                if (artBitmap != null) {
+                LaunchedEffect(song.data, s.imageVersion) {
+                    artBitmap = withContext(Dispatchers.IO) {
+                        try {
+                            val retriever = MediaMetadataRetriever()
+                            retriever.setDataSource(song.data)
+                            val art = retriever.embeddedPicture
+                            retriever.release()
+                            if (art != null) BitmapFactory.decodeByteArray(art, 0, art.size) else null
+                        } catch (e: Exception) { null }
+                    }
+                }
+
+                val currentBitmap = artBitmap
+                if (currentBitmap != null) {
                     Image(
-                        bitmap = artBitmap.asImageBitmap(),
+                        bitmap = currentBitmap.asImageBitmap(),
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize().blur(18.dp),
                         contentScale = ContentScale.Crop,
@@ -435,7 +440,7 @@ fun PlayerScreen(
                             ),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        val waveform = remember { getWaveform() }
+                        val waveform = remember(s.currentSong?.id) { getWaveform() }
 
                         WaveformBar(
                             values   = waveform,
@@ -650,9 +655,10 @@ fun PlayerScreen(
 
                         // Carátula / Letras
                         if (!s.showLyrics) {
-                            if (artBitmap != null) {
+                            val currentBitmap = artBitmap
+                            if (currentBitmap != null) {
                                 Image(
-                                    bitmap = artBitmap.asImageBitmap(),
+                                    bitmap = currentBitmap.asImageBitmap(),
                                     contentDescription = null,
                                     modifier = Modifier
                                         .size(imageSize)
@@ -748,7 +754,7 @@ fun PlayerScreen(
 
             } // fin if (song != null)
 
-            // ── Dialogs ───────────────────────────────────────────────────────
+            // Dialogs
             if (s.showLyricsEditor && s.currentSong != null) {
                 LyricsEditorScreen(
                     song      = s.currentSong!!,
