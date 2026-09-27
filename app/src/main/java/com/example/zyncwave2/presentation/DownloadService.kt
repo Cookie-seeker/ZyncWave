@@ -146,7 +146,7 @@ class DownloadService : Service() {
         super.onDestroy()
     }
 
-    // ── Notificación ──────────────────────────────────────────────────────────
+    // Notificación
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

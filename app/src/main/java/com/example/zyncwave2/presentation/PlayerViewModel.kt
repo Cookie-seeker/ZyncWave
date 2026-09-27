@@ -40,8 +40,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     private val _state = MutableStateFlow(PlayerUiState())
     val state = _state.asStateFlow()
 
-    // ── ExoPlayer listener ────────────────────────────────────────────────────
-
+    // ExoPlayer listener
     private val playerListener = object : Player.Listener {
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -100,7 +99,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ── Ticker de posición ────────────────────────────────────────────────────
+    // Ticker de posición
 
     private fun startPositionTicker() {
         viewModelScope.launch {
@@ -125,13 +124,13 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ── Queue source ──────────────────────────────────────────────────────────
+    // Queue source
 
     fun setQueueSource(source: PlayerState.QueueSource, sourceId: String) {
         _state.update { it.copy(queueSource = source, queueSourceId = sourceId) }
     }
 
-    // ── Preload — muestra UI sin esperar ExoPlayer ────────────────────────────
+    // Preload — muestra UI sin esperar ExoPlayer
 
     /**
      * Setea metadata de la canción en el state SIN tocar ExoPlayer.
@@ -178,7 +177,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ── Inicializar reproducción ──────────────────────────────────────────────
+    // Inicializar reproducción
 
     @OptIn(UnstableApi::class)
     fun initPlayback(songsList: List<Songs>, initialIndex: Int) {
@@ -218,7 +217,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         updateSongMeta(initialIndex)
 
         val audioSessionId = player.audioSessionId
-        if (audioSessionId != 0) EqualizerManager.init(audioSessionId)
+        if (audioSessionId != 0) EqualizerManager.init(audioSessionId, context)
 
         // Precalentar caché de carátula en background
         viewModelScope.launch(Dispatchers.IO) {
@@ -241,6 +240,8 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     fun initPlaybackRestored(songsList: List<Songs>, initialIndex: Int, positionMs: Long) {
         val player = PlayerState.exoPlayer ?: return
 
+        android.util.Log.d("PERF", "initPlaybackRestored START, songs=${songsList.size}: ${System.currentTimeMillis()}")
+
         _state.update { it.copy(songsList = songsList, currentIndex = initialIndex) }
 
         val mediaItems = songsList.map { s ->
@@ -261,15 +262,18 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 )
                 .build()
         }
+        android.util.Log.d("PERF", "mediaItems construidos: ${System.currentTimeMillis()}")
 
         player.setMediaItems(mediaItems, initialIndex, positionMs)
+        android.util.Log.d("PERF", "setMediaItems DONE: ${System.currentTimeMillis()}")
         player.prepare()
+        android.util.Log.d("PERF", "player.prepare() DONE: ${System.currentTimeMillis()}")
         // NO player.play() — queda pausado en la posición guardada
 
         updateSongMeta(initialIndex)
 
         val audioSessionId = player.audioSessionId
-        if (audioSessionId != 0) EqualizerManager.init(audioSessionId)
+        if (audioSessionId != 0) EqualizerManager.init(audioSessionId, context)
 
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -288,7 +292,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     }
 
-    // ── Controles de reproducción ─────────────────────────────────────────────
+    // Controles de reproducción
 
     fun togglePlaying() {
         val player = PlayerState.exoPlayer ?: return
@@ -364,7 +368,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(isFavorite = FavoritesManager.isFavorite(song.id)) }
     }
 
-    // ── Dialogs / UI flags ────────────────────────────────────────────────────
+    // Dialogs / UI flags
 
     fun setShowMenu(show: Boolean)          = _state.update { it.copy(showMenu = show) }
     fun setShowLyrics(show: Boolean)        = _state.update { it.copy(showLyrics = show) }
@@ -377,7 +381,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         PlayerState.showQueue.value = show
     }
 
-    // ── Letras ────────────────────────────────────────────────────────────────
+    // Letras
 
     fun saveLyrics(lyrics: String) {
         val song = _state.value.currentSong ?: return
@@ -387,7 +391,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(currentLyrics = lyrics, showLyricsEditor = false) }
     }
 
-    // ── Tag editor ────────────────────────────────────────────────────────────
+    // Tag editor
 
     fun onTagsSaved(
         newTitle: String, newArtist: String, newAlbum: String,
@@ -478,7 +482,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ── Biblioteca ────────────────────────────────────────────────────────────
+    // Biblioteca
 
     fun rescanLibrary() {
         viewModelScope.launch {
@@ -513,7 +517,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ── Helpers privados ──────────────────────────────────────────────────────
+    // Helpers privados
 
     private fun seekToRealIndex(realIndex: Int) {
         val player = PlayerState.exoPlayer ?: return
@@ -572,7 +576,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ── Back handler ──────────────────────────────────────────────────────────
+    // Back handler
 
     fun handleBack(): Boolean {
         return when {

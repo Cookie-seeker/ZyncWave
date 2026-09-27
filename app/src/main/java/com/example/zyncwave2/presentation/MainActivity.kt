@@ -5,6 +5,12 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.viewpager2.widget.ViewPager2
@@ -16,6 +22,9 @@ import com.example.zyncwave2.data.PlaylistManager
 import com.example.zyncwave2.data.SongRepository
 import com.example.zyncwave2.data.Songs
 import com.example.zyncwave2.data.db.AppDatabase
+import com.example.zyncwave2.ui.theme.MainHeader
+import com.example.zyncwave2.ui.theme.SearchOverlay
+import com.example.zyncwave2.ui.theme.ZyncWave2Theme
 import com.example.zyncwave2.ui.theme.loadSavedFolders
 import com.google.android.material.tabs.TabLayout
 import kotlinx.coroutines.Dispatchers
@@ -46,14 +55,15 @@ class MainActivity : AppCompatActivity() {
             this,
             object : androidx.activity.OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
+                    android.util.Log.d("QueueBack", "Sistema BACK recibido — showQueue=${playerViewModel.state.value.showQueue}")
                     when {
-                        PlayerState.isQueueExpanded                  -> playerViewModel.setShowQueue(false)
-                        playerViewModel.handleBack()                 -> {}
+                        playerViewModel.handleBack()                 -> {android.util.Log.d("QueueBack", " manejado por handleBack()")}
                         PlayerState.selectedPlaylistId.value != null -> PlayerState.selectedPlaylistId.value = null
                         PlayerState.selectedSection.value != null    -> PlayerState.selectedSection.value = null
                         PlayerState.selectedArtist.value != null     -> PlayerState.selectedArtist.value = null
                         PlayerState.selectedAlbum.value != null      -> PlayerState.selectedAlbum.value = null
-                        else -> moveTaskToBack(true)
+                        else -> { android.util.Log.d("QueueBack", " NADIE lo manejó, moveTaskToBack"); moveTaskToBack(true)}
+
                     }
                 }
             }
@@ -71,8 +81,55 @@ class MainActivity : AppCompatActivity() {
         bottomNav = findViewById(R.id.bottomNav)
 
         viewPager.adapter            = MainPagerAdapter(this)
-        viewPager.offscreenPageLimit = 1
+        viewPager.offscreenPageLimit = ViewPager2.OFFSCREEN_PAGE_LIMIT_DEFAULT
         viewPager.isUserInputEnabled = true
+
+        val tabTitlesFull = listOf("Reproduciendo", "Canciones", "Listas", "Artistas", "Álbumes", "Carpetas", "Descargar")
+
+        val headerCompose = findViewById<androidx.compose.ui.platform.ComposeView>(R.id.headerCompose)
+        headerCompose.setViewCompositionStrategy(
+            androidx.compose.ui.platform.ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
+        )
+        headerCompose.setContent {
+            ZyncWave2Theme {
+                var currentTitle by remember { mutableStateOf(tabTitlesFull[0]) }
+                var currentPage by remember { mutableStateOf(0) }
+
+                // Solo mostrar header en Songs(1), Artists(3), Albums(4)
+                if (currentPage in listOf(1, 3, 4)) {
+                    MainHeader(
+                        title = currentTitle,
+                        onSearchClick = {
+                            PlayerState.showSearchOverlay.value = true
+                        }
+                    )
+                }
+
+                val showSearch by PlayerState.showSearchOverlay.collectAsState()
+                val songsList by PlayerState.songsList.collectAsState()
+                if (showSearch) {
+                    SearchOverlay(
+                        songs = songsList,
+                        onDismiss = { PlayerState.showSearchOverlay.value = false },
+                        onSongClick = { songs, position ->
+                            PlayerState.navigateToPlayer.value = true
+                            playerViewModel.initPlayback(songs, position)
+                            PlayerState.showSearchOverlay.value = false
+                        },
+                        playerViewModel = playerViewModel
+                    )
+                }
+
+                LaunchedEffect(Unit) {
+                    viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+                        override fun onPageSelected(position: Int) {
+                            currentTitle = tabTitlesFull.getOrElse(position) { "" }
+                            currentPage = position
+                        }
+                    })
+                }
+            }
+        }
 
         val tabItems = listOf(
             R.drawable.outline_play_circle_24   to "Playing",
@@ -114,14 +171,17 @@ class MainActivity : AppCompatActivity() {
         })
 
         // FileObserver — syncWithDisk en lugar de getSongs
+        // MainActivity.kt, dentro de onCreate()
         val savedFolders = loadSavedFolders(this)
         if (savedFolders.isNotEmpty()) {
             PlayerState.selectedFolders.value = savedFolders
-            PlayerState.startWatchingFolders(this) {
-                delay(1500)
-                withContext(Dispatchers.IO) {
-                    SongRepository(applicationContext)
-                        .syncWithDisk(PlayerState.selectedFolders.value)
+            lifecycleScope.launch(Dispatchers.IO) {
+                PlayerState.startWatchingFolders(this@MainActivity) {
+                    delay(1500)
+                    withContext(Dispatchers.IO) {
+                        SongRepository(applicationContext)
+                            .syncWithDisk(PlayerState.selectedFolders.value)
+                    }
                 }
             }
         }
@@ -136,6 +196,7 @@ class MainActivity : AppCompatActivity() {
             val (songId, positionMs, sourceInfo) = session
             val (queueSource, queueSourceId) = sourceInfo
 
+            android.util.Log.d("PERF", "Room query START: ${System.currentTimeMillis()}")
             val allSongs = withContext(Dispatchers.IO) {
                 AppDatabase.getInstance(this@MainActivity)
                     .songDao()
@@ -149,6 +210,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     .map { it.toSongs() }
             }
+            android.util.Log.d("PERF", "Room query END: ${System.currentTimeMillis()}")
 
             if (allSongs.isEmpty()) return@launch
 
@@ -170,11 +232,13 @@ class MainActivity : AppCompatActivity() {
 
             // ExoPlayer en background — no bloquea la UI
             launch(Dispatchers.IO) {
+                android.util.Log.d("PERF", "polling loop START: ${System.currentTimeMillis()}")
                 var attempts = 0
                 while (PlayerState.exoPlayer == null && attempts < 20) {
                     delay(100)
                     attempts++
                 }
+                android.util.Log.d("PERF", "polling loop END, attempts=$attempts: ${System.currentTimeMillis()}")
                 withContext(Dispatchers.Main) {
                     playerViewModel.initPlaybackRestored(finalQueue, index, positionMs)
                 }

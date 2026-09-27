@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import com.example.zyncwave2.ui.theme.AlbumTabContent
+import com.example.zyncwave2.ui.theme.ZyncWave2Theme
 
 class AlbumFragment : Fragment() {
     private val playerViewModel: PlayerViewModel by activityViewModels()
@@ -21,7 +22,9 @@ class AlbumFragment : Fragment() {
             )
 
             setContent {
-                AlbumTabContent(playerViewModel = playerViewModel)
+                ZyncWave2Theme {
+                    AlbumTabContent(playerViewModel = playerViewModel)
+                }
             }
         }
     }

@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import com.example.zyncwave2.ui.theme.FolderTabContent
+import com.example.zyncwave2.ui.theme.ZyncWave2Theme
 
 class FolderFragment : Fragment() {
     private val playerViewModel: PlayerViewModel by activityViewModels()
@@ -21,7 +22,9 @@ class FolderFragment : Fragment() {
             )
 
             setContent {
-                FolderTabContent(playerViewModel = playerViewModel)
+                ZyncWave2Theme {
+                    FolderTabContent(playerViewModel = playerViewModel)
+                }
             }
         }
     }

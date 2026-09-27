@@ -7,6 +7,7 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.WindowCompat
 import com.example.zyncwave2.ui.theme.DownloadScreen
+import com.example.zyncwave2.ui.theme.ZyncWave2Theme
 
 class DownloadActivity : AppCompatActivity() {
 
@@ -21,7 +22,9 @@ class DownloadActivity : AppCompatActivity() {
                 ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
             )
             setContent {
-                DownloadScreen(viewModel = downloadViewModel)
+                ZyncWave2Theme {
+                    DownloadScreen(viewModel = downloadViewModel)
+                }
             }
         }
         setContentView(composeView)

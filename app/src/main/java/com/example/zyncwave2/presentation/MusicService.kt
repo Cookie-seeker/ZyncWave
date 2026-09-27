@@ -100,8 +100,8 @@ class MusicService : MediaSessionService() {
                 android.support.v4.media.session.MediaSessionCompat.Callback() {
                 override fun onPlay()             { PlayerState.exoPlayer?.play() }
                 override fun onPause()            { PlayerState.exoPlayer?.pause() }
-                override fun onSkipToNext()       { PlayerState.exoPlayer?.seekToNextMediaItem() }
-                override fun onSkipToPrevious()   { PlayerState.exoPlayer?.seekToPreviousMediaItem() }
+                override fun onSkipToNext()     { PlayerState.pendingCommand.value = PlayerState.PlayerCommand.Next }
+                override fun onSkipToPrevious() { PlayerState.pendingCommand.value = PlayerState.PlayerCommand.Prev }
                 override fun onSeekTo(pos: Long)  { PlayerState.exoPlayer?.seekTo(pos) }
                 override fun onStop() {
                     PlayerState.exoPlayer?.pause()

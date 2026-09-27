@@ -44,7 +44,7 @@ class DownloadViewModel(app: Application) : AndroidViewModel(app) {
         startQueueWorker()
     }
 
-    // ── Observar preferencias persistidas ────────────────────────────────────
+    // Observar preferencias persistidas
 
     /**
      * Se suscribe al Flow del DataStore.
@@ -60,7 +60,7 @@ class DownloadViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ── Worker de la cola ─────────────────────────────────────────────────────
+    // Worker de la cola
 
     private fun startQueueWorker() {
         viewModelScope.launch {
@@ -110,7 +110,7 @@ class DownloadViewModel(app: Application) : AndroidViewModel(app) {
         context.startService(intent)
     }
 
-    // ── Inicialización ────────────────────────────────────────────────────────
+    // Inicialización
 
     private fun initBinaryAndHistory() {
         viewModelScope.launch {
@@ -142,7 +142,7 @@ class DownloadViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ── Callbacks del Service ─────────────────────────────────────────────────
+    // Callbacks del Service
 
     private fun registerServiceCallbacks() {
         DownloadService.onProgress = { itemId, msg, progress ->
@@ -188,7 +188,7 @@ class DownloadViewModel(app: Application) : AndroidViewModel(app) {
         super.onCleared()
     }
 
-    // ── Acciones de la UI ─────────────────────────────────────────────────────
+    // Acciones de la UI
 
     fun onUrlChange(url: String) {
         _state.update {
@@ -197,7 +197,8 @@ class DownloadViewModel(app: Application) : AndroidViewModel(app) {
                 videoTitle       = "",
                 selectedFormat   = null,
                 availableFormats = emptyList(),
-                statusMessage    = ""
+                statusMessage    = "",
+                formatsErrorRaw  = null
             )
         }
     }
@@ -207,17 +208,24 @@ class DownloadViewModel(app: Application) : AndroidViewModel(app) {
         if (url.isBlank()) return
 
         viewModelScope.launch {
-            _state.update { it.copy(isLoadingFormats = true, statusMessage = "Obteniendo formatos...") }
+            _state.update {
+                it.copy(
+                    isLoadingFormats = true,
+                    statusMessage = "Obteniendo formatos...",
+                    formatsErrorRaw = null   // limpiar error anterior al reintentar
+                )
+            }
 
-            val title   = YtDlpManager.getVideoTitle(context, url)
-            val formats = YtDlpManager.getFormats(context, url)
+            val title = YtDlpManager.getVideoTitle(context, url)
+            val (formats, rawError) = YtDlpManager.getFormats(context, url)
 
             _state.update { current ->
                 current.copy(
                     isLoadingFormats = false,
                     videoTitle       = title ?: "",
                     availableFormats = formats,
-                    statusMessage    = if (formats.isEmpty()) "No se pudieron obtener formatos. Verifica la URL." else "",
+                    statusMessage    = if (formats.isEmpty()) YtDlpManager.translateError(rawError ?: "") else "",
+                    formatsErrorRaw  = if (formats.isEmpty()) rawError else null,
                     showFormats      = formats.isNotEmpty()
                 )
             }
@@ -293,7 +301,7 @@ class DownloadViewModel(app: Application) : AndroidViewModel(app) {
         saveHistory()
     }
 
-    // ── Preferencias — ahora persisten en DataStore ───────────────────────────
+    // Preferencias — ahora persisten en DataStore
 
     fun setShowPreferences(show: Boolean) {
         _state.update { it.copy(showPreferences = show) }
@@ -322,7 +330,7 @@ class DownloadViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { prefsRepository.saveSubtitleLang(lang) }
     }
 
-    // ── Actualizador ──────────────────────────────────────────────────────────
+    // Actualizador
 
     fun toggleUpdatePanel() {
         _state.update { it.copy(showUpdatePanel = !it.showUpdatePanel) }
@@ -350,7 +358,12 @@ class DownloadViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(showSettings = show, showPreferences = false, showUpdatePanel = false) }
     }
 
-    // ── Historial ─────────────────────────────────────────────────────────────
+    //info
+    fun setShowSupportedSites(show: Boolean) {
+        _state.update { it.copy(showSupportedSites = show) }
+    }
+
+    // Historial
 
     private fun saveHistory() {
         val list = _state.value.downloadList
