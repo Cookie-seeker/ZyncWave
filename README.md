@@ -11,6 +11,19 @@
 </div>
 
 ---
+## Screenshots
+
+<div align="center">
+  <img src="Screenshots/Screen_1.jpeg" width="220"/>
+  <img src="Screenshots/Screen_2.jpeg" width="220"/>
+  <img src="Screenshots/Screen_3.jpeg" width="220"/>
+  <img src="Screenshots/Screen_4.jpeg" width="220"/>
+  <img src="Screenshots/Screen_5.jpeg" width="220"/>
+  <img src="Screenshots/Screen_6.jpeg" width="220"/>
+  <img src="Screenshots/Screen_7.jpeg" width="220"/>
+</div>
+
+---
 
 ## Funciones
 
