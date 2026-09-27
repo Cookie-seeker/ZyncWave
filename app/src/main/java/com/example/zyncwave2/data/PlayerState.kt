@@ -47,19 +47,22 @@ object PlayerState {
     //Posición restaurada al reabrir la app
     var lastRestoredPosition: Long = 0L
 
+    //busqueda
+    val showSearchOverlay = MutableStateFlow(false)
+
     //Contexto de cola
 
     /**
      * De dónde viene la cola activa.
      * Se guarda en SharedPreferences para restaurarla correctamente al reabrir.
      *
-     * - ALL_SONGS  → lista completa de canciones
-     * - FAVORITES  → canciones marcadas como favoritas
-     * - RECENT     → canciones ordenadas por fecha de agregado (id desc)
-     * - PLAYLIST   → lista creada por el usuario (queueSourceId = playlist id)
-     * - ALBUM      → canciones de un álbum (queueSourceId = albumName)
-     * - ARTIST     → canciones de un artista (queueSourceId = artistName)
-     * - FOLDER     → canciones de una carpeta (queueSourceId = folder path)
+     * - ALL_SONGS -> lista completa de canciones
+     * - FAVORITES -> canciones marcadas como favoritas
+     * - RECENT -> canciones ordenadas por fecha de agregado (id desc)
+     * - PLAYLIST -> lista creada por el usuario (queueSourceId = playlist id)
+     * - ALBUM -> canciones de un álbum (queueSourceId = albumName)
+     * - ARTIST -> canciones de un artista (queueSourceId = artistName)
+     * - FOLDER -> canciones de una carpeta (queueSourceId = folder path)
      */
     enum class QueueSource {
         ALL_SONGS, FAVORITES, RECENT, PLAYLIST, ALBUM, ARTIST, FOLDER

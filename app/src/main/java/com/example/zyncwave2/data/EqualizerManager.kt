@@ -15,7 +15,7 @@ object EqualizerManager {
 
     var isEnabled = false
 
-    fun init(audioSessionId: Int) {
+    fun init(audioSessionId: Int, context: Context? = null) {
         release()
         try {
             equalizer   = Equalizer(0, audioSessionId).apply { enabled = true }
@@ -26,6 +26,8 @@ object EqualizerManager {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+        // Cargar preferencias guardadas automáticamente si hay contexto
+        context?.let { loadPreferences(it) }
     }
 
     fun setEqualizerBand(band: Short, level: Short) {
@@ -111,25 +113,22 @@ object EqualizerManager {
 
     fun loadPreferences(context: Context) {
         val prefs = context.getSharedPreferences("equalizer_prefs", Context.MODE_PRIVATE)
-
-        // Cargar bandas del EQ
-        val numBands = prefs.getInt("num_bands", 0)
+        val eq    = equalizer ?: return
+        val numBands = eq.numberOfBands.toInt()
         for (i in 0 until numBands) {
-            val level = prefs.getInt("band_$i", 0).toShort()
-            equalizer?.setBandLevel(i.toShort(), level)
+            eq.setBandLevel(i.toShort(), prefs.getInt("band_$i", 0).toShort())
         }
 
-        // Cargar bass boost
-        val bassLevel = prefs.getInt("bass_boost", 0).toShort()
-        bassBoost?.setStrength(bassLevel)
+        bassBoost?.setStrength(prefs.getInt("bass_boost", 0).toShort())
+        virtualizer?.setStrength(prefs.getInt("virtualizer", 0).toShort())
+        setReverb(prefs.getInt("reverb_preset", 0).toShort())
 
-        // Cargar virtualizer
-        val virtLevel = prefs.getInt("virtualizer", 0).toShort()
-        virtualizer?.setStrength(virtLevel)
-
-        // Cargar reverb
-        val reverbPreset = prefs.getInt("reverb_preset", 0).toShort()
-        setReverb(reverbPreset)
+        val enabled     = prefs.getBoolean("eq_enabled", true)
+        eq.enabled      = enabled
+        bassBoost?.enabled   = enabled
+        virtualizer?.enabled = enabled
+        reverb?.enabled      = enabled
+        isEnabled            = enabled
     }
 
     fun resetToDefault(context: Context) {
@@ -142,7 +141,6 @@ object EqualizerManager {
         virtualizer?.setStrength(0)
         setReverb(0)
 
-        // Limpiar preferencias guardadas
         context.getSharedPreferences("equalizer_prefs", Context.MODE_PRIVATE)
             .edit().clear().apply()
     }

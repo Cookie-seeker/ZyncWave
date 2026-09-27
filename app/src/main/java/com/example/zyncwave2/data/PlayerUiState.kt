@@ -1,7 +1,7 @@
 package com.example.zyncwave2.data
 
 data class PlayerUiState(
-    // ── Canción actual ────────────────────────────────────────────────────────
+    // Canción actual
     val currentSong: Songs? = null,
     val currentIndex: Int = 0,
     val songsList: List<Songs> = emptyList(),
@@ -9,22 +9,22 @@ data class PlayerUiState(
     val queueSource: PlayerState.QueueSource = PlayerState.QueueSource.ALL_SONGS,
     val queueSourceId: String = "",
 
-    // ── Reproducción ──────────────────────────────────────────────────────────
+    // Reproducción
     val isPlaying: Boolean = false,
     val elapsed: Long = 0L,
     val duration: Long = 0L,
 
-    // ── Modos ─────────────────────────────────────────────────────────────────
+    // Modos
     val isShuffle: Boolean = false,
     val shuffledList: List<Songs> = emptyList(),
     val repeatMode: RepeatMode = RepeatMode.NONE,
 
-    // ── UI extra ──────────────────────────────────────────────────────────────
+    // UI extra
     val isFavorite: Boolean = false,
     val currentLyrics: String = "",
     val showLyrics: Boolean = false,
 
-    // ── Dialogs ───────────────────────────────────────────────────────────────
+    // Dialogs
     val showMenu: Boolean = false,
     val showQueue: Boolean = false,
     val showLyricsEditor: Boolean = false,
@@ -32,10 +32,10 @@ data class PlayerUiState(
     val showTagEditor: Boolean = false,
     val showEqualizer: Boolean = false,
 
-    // ── Forzar recomposición de portada ───────────────────────────────────────
+    // Forzar recomposición de portada
     val imageVersion: Int = 0,
 
-    // ── Evento de fin de cola ─────────────────────────────────────────────────
+    // Evento de fin de cola
     val queueEndedEvent: Boolean = false
 ) {
     val activeList: List<Songs>

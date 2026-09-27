@@ -9,7 +9,7 @@ import java.net.URLEncoder
 
 object YtMusicApi {
 
-    // ← Cambia esto cuando deploys en Railway
+    // deploy en Render
     private const val BASE_URL = "https://zyncwave-lyrics.onrender.com"
     private const val TIMEOUT_MS = 20_000
 
@@ -54,11 +54,7 @@ object YtMusicApi {
             }
         }
 
-    /**
-     * Convierte el array JSON de Lyrica a formato LRC estándar.
-     * Input:  [{ "text": "...", "start_time": 5200, "end_time": 10400, "id": 1 }, ...]
-     * Output: "[00:05.20] ...\n[00:10.40] ...\n"
-     */
+
     private fun convertToLrc(timedArray: org.json.JSONArray): String {
         val sb = StringBuilder()
         for (i in 0 until timedArray.length()) {

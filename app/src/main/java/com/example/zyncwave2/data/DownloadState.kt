@@ -14,6 +14,7 @@ data class DownloadState(
     val selectedFormat: VideoFormat? = null,
     val videoTitle: String = "",
     val showFormats: Boolean = false,
+    val formatsErrorRaw: String? = null,
 
     //Descarga activa
     val isDownloading: Boolean = false,
@@ -39,4 +40,7 @@ data class DownloadState(
 
     //Pantalla de ajustes
     val showSettings: Boolean = false,
+
+    //Pantalla de info
+    val showSupportedSites: Boolean = false,
 )

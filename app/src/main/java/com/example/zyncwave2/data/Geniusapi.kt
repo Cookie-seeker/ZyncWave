@@ -10,13 +10,13 @@ import java.net.URLEncoder
 
 /**
  * Cliente para la API oficial de Genius.
- * Usa Client Access Token propio — búsqueda via API REST,
+ * Usa Client Access Token propio  búsqueda via API REST,
  * letras via scraping del HTML de la página de la canción.
  */
 object GeniusApi {
 
     private const val BASE_URL    = "https://api.genius.com"
-    private const val TOKEN       = "-fe7kM85wiTnXz1VL-s8M4CQR-SfHzVGX_tY0J0lKehnxR13aTwGv2zOgGrrLf21"
+    private const val TOKEN       = "Genere su propia Api en: https://genius.com/api-clients/new"
     private const val TIMEOUT     = 15000
     private const val MAX_RETRY   = 3
     private const val RETRY_DELAY = 1500L

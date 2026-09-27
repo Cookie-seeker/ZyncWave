@@ -10,7 +10,6 @@ import java.net.URLEncoder
 
 /**
  * Cliente para la API no oficial de NetEase Music (music.163.com).
- * Usada ampliamente en apps open source (OuterTune, ViMusic, etc.).
  * No requiere autenticación para búsqueda y letras públicas.
  *
  * Endpoints usados:
@@ -106,9 +105,9 @@ object NetEaseApi {
      * Retorna un NetEaseResult actualizado con plainLyrics y/o syncedLyrics.
      *
      * El endpoint retorna:
-     *  - lrc.lyric   → letras con timestamps [mm:ss.xx] (LRC estándar)
-     *  - klyric.lyric → letras palabra por palabra (karaoke, ignoramos)
-     *  - tlyric.lyric → traducción (ignoramos por ahora)
+     *  - lrc.lyric: letras con timestamps [mm:ss.xx] (LRC estándar)
+     *  - klyric.lyric: letras palabra por palabra (karaoke, ignoramos)
+     *  - tlyric.lyric: traducción (ignoramos por ahora)
      */
     suspend fun fetchLyrics(songId: Long): Result<Pair<String?, String?>> =
         withContext(Dispatchers.IO) {

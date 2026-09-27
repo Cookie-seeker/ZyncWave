@@ -19,17 +19,17 @@ import org.jaudiotagger.tag.images.ArtworkFactory
 import java.io.File
 import java.io.FileOutputStream
 
-// ─────────────────────────────────────────────────────────────────────────────
+
 // Resultado sellado que devuelve el repositorio a la UI
-// ─────────────────────────────────────────────────────────────────────────────
+
 sealed class WriteResult {
     object Success : WriteResult()
     data class Error(val message: String, val cause: Throwable? = null) : WriteResult()
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+
 // Formatos soportados por cada motor
-// ─────────────────────────────────────────────────────────────────────────────
+
 private val JAUDIOTAGGER_FORMATS = setOf(
     "mp3", "flac", "ogg", "wav", "wave",
     "aif", "aiff", "mp4", "m4a", "m4p",
@@ -42,28 +42,21 @@ private val TAGLIB_FORMATS = setOf("opus")
 
 private const val TAG = "MetadataRepository"
 
-// ─────────────────────────────────────────────────────────────────────────────
+
 class MetadataRepository(private val context: Context) {
 
     private val dao = AppDatabase.getInstance(context).songDao()
 
-    // ─────────────────────────────────────────────────────────────────────────
+
     // API pública
-    // ─────────────────────────────────────────────────────────────────────────
+
 
     /**
-     * Guarda título, artista, álbum, género, nº pista, nº disco y carátula opcional.
+     * Guarda título, artista, álbum, género, nº pista, nº disco y carátula.
      *
-     * Estrategia híbrida:
-     *   • .opus  → TagLib  (Kyant0/taglib vía JNI — soporta Vorbis Comments en Ogg Opus)
-     *   • resto  → JAudioTagger  (fork Adonai — mp3, flac, ogg-vorbis, m4a, wav, etc.)
-     *
-     * Flujo para ambos motores:
-     *   1. Copiar original → temp en cacheDir
-     *   2. Modificar tags en el temp
-     *   3. Escribir temp de vuelta al archivo original (ContentResolver o File.copyTo)
-     *   4. Actualizar Room
-     *   5. Notificar MediaStore
+     * Híbrida:
+     *   • .opus  -> TagLib  (Kyant0/taglib vía JNI - soporta Vorbis Comments en Ogg Opus)
+     *   • resto  -> JAudioTagger  (fork Adonai - mp3, flac, ogg-vorbis, m4a, wav, etc.)
      */
     suspend fun saveTags(
         songId: Long,
@@ -123,10 +116,7 @@ class MetadataRepository(private val context: Context) {
 
 
 
-    /**
-     * Guarda solo la carátula sin tocar los tags de texto.
-     * Misma lógica de dispatch por extensión.
-     */
+
     suspend fun saveArtwork(
         songId: Long,
         filePath: String,
@@ -142,9 +132,9 @@ class MetadataRepository(private val context: Context) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+
     // Motor 1: JAudioTagger  (mp3, flac, ogg-vorbis, m4a, wav, wma, dsf…)
-    // ─────────────────────────────────────────────────────────────────────────
+
 
     private fun saveTagsWithJAudioTagger(
         songId: Long,
@@ -262,7 +252,7 @@ class MetadataRepository(private val context: Context) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+
     // Motor 2: TagLib via Kyant0  (.opus y cualquier formato soportado por TagLib)
     //
     // API de Kyant0/taglib:
@@ -409,9 +399,9 @@ class MetadataRepository(private val context: Context) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+
     // Helpers compartidos
-    // ─────────────────────────────────────────────────────────────────────────
+
 
     /**
      * Escribe el archivo temporal editado de vuelta a su ubicación original.

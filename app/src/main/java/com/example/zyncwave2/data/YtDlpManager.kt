@@ -51,7 +51,7 @@ object YtDlpManager {
         return if (ffmpeg.exists()) ffmpeg.absolutePath else null
     }
 
-    // ── Versión actual de yt-dlp ──────────────────────────────────────────────
+    // Versión actual de yt-dlp
     suspend fun getCurrentVersion(context: Context): String = withContext(Dispatchers.IO) {
         try {
             YoutubeDL.getInstance().version(context) ?: "Desconocida"
@@ -60,7 +60,7 @@ object YtDlpManager {
         }
     }
 
-    // ── Actualizar yt-dlp ─────────────────────────────────────────────────────
+    // Actualizar yt-dlp
     suspend fun updateYtDlp(
         context: Context,
         useNightly: Boolean = false,
@@ -96,12 +96,50 @@ object YtDlpManager {
         }
     }
 
-    // ── Limpiar carpeta temp antes de cada descarga ───────────────────────────
+    // Limpiar carpeta temp antes de cada descarga
     private fun cleanTempDir(tempDir: File) {
         try {
             tempDir.listFiles()?.forEach { it.delete() }
         } catch (e: Exception) {
             android.util.Log.w("YTDLP", "No se pudo limpiar temp: ${e.message}")
+        }
+    }
+
+
+    //Helpers
+
+    private fun runRequest(
+        request: YoutubeDLRequest,
+        onOutput: ((Float, Long, String?) -> Unit)?
+    ): com.yausername.youtubedl_android.YoutubeDLResponse {
+        return if (onOutput != null) {
+            YoutubeDL.getInstance().execute(request) { progress, eta, line ->
+                onOutput(progress, eta, line)
+            }
+        } else {
+            YoutubeDL.getInstance().execute(request)
+        }
+    }
+
+
+    private fun executeWithSmartFallback(
+        request: YoutubeDLRequest,
+        onOutput: ((Float, Long, String?) -> Unit)? = null
+    ): com.yausername.youtubedl_android.YoutubeDLResponse {
+        return try {
+            runRequest(request, onOutput)
+        } catch (e: Exception) {
+            val msg = e.message.orEmpty()
+            val isKnownAuthFailure = msg.contains("Sign in to confirm", ignoreCase = true) ||
+                    msg.contains("403", ignoreCase = true)
+
+            if (isKnownAuthFailure) {
+                android.util.Log.w("YTDLP", "Fallo con cliente default, reintentando con android_vr forzado")
+                request.addOption("--extractor-args", "youtube:player_client=android_vr")
+                runRequest(request, onOutput)
+            } else {
+                throw e
+            }
         }
     }
 
@@ -113,9 +151,9 @@ object YtDlpManager {
             val request = YoutubeDLRequest(url).apply {
                 addOption("--get-title")
                 addOption("--no-playlist")
-                addOption("--extractor-args", "youtube:player_client=android_vr")
+
             }
-            val response = YoutubeDL.getInstance().execute(request)
+            val response = executeWithSmartFallback(request)
             response.out.trim().lines().firstOrNull()
         } catch (e: Exception) {
             android.util.Log.e("YTDLP", "Error obteniendo título: ${e.message}")
@@ -131,9 +169,9 @@ object YtDlpManager {
             val request = YoutubeDLRequest(url).apply {
                 addOption("--print", "%(title)s|%(uploader)s|%(album)s|%(thumbnail)s")
                 addOption("--no-playlist")
-                addOption("--extractor-args", "youtube:player_client=android_vr")
+
             }
-            val response = YoutubeDL.getInstance().execute(request)
+            val response = executeWithSmartFallback(request)
             val parts = response.out.trim().split("|")
             VideoMetadata(
                 title        = parts.getOrNull(0)?.trim() ?: "",
@@ -150,18 +188,53 @@ object YtDlpManager {
     suspend fun getFormats(
         context: Context,
         url: String
-    ): List<VideoFormat> = withContext(Dispatchers.IO) {
+    ): Pair<List<VideoFormat>, String?> = withContext(Dispatchers.IO) {
         try {
             val request = YoutubeDLRequest(url).apply {
                 addOption("-F")
                 addOption("--no-playlist")
-                addOption("--extractor-args", "youtube:player_client=android_vr")
             }
-            val response = YoutubeDL.getInstance().execute(request)
-            parseFormats(response.out)
+            val response = executeWithSmartFallback(request)
+
+            android.util.Log.d("YTDLP_RAW", "==== RAW -F OUTPUT ====\n${response.out}")
+
+            Pair(parseFormats(response.out), null)
         } catch (e: Exception) {
             android.util.Log.e("YTDLP", "Error obteniendo formatos: ${e.message}")
-            emptyList()
+            val rawError = e.message ?: "Error desconocido"
+            Pair(emptyList(), rawError)
+        }
+    }
+
+    fun translateError(rawError: String): String {
+        val lower = rawError.lowercase()
+        return when {
+            "429" in lower || "too many requests" in lower ->
+                "El sitio está limitando las solicitudes por exceso de tráfico. Esperá unos minutos e intentá de nuevo."
+
+            "sign in to confirm" in lower || "not a bot" in lower ->
+                "El sitio requiere verificar que no sos un bot. Puede pasar por uso repetido; probá más tarde o desde otra red."
+
+            "impersonation" in lower ->
+                "El sitio cambió su estructura y el extractor no pudo simular correctamente el acceso. Puede necesitar una actualización de yt-dlp."
+
+            "unsupported url" in lower ->
+                "Este enlace no corresponde a un sitio compatible."
+
+            "video unavailable" in lower ->
+                "El video no está disponible (fue eliminado, es privado, o está restringido en tu región)."
+
+            "private video" in lower ->
+                "Este video es privado y no se puede descargar."
+
+            "js runtime" in lower || "javascript runtime" in lower ->
+                "Falta un componente interno (runtime de JavaScript) necesario para procesar este enlace."
+
+            "no title found" in lower ->
+                "No se pudo obtener información del video, pero puede que igual funcione la descarga."
+
+            else ->
+                "No se pudo procesar el enlace. Revisá el detalle técnico abajo para más información."
         }
     }
 
@@ -215,7 +288,7 @@ object YtDlpManager {
         return formats
     }
 
-    // ── Guardar archivo con copia directa ─────────────────────────────────────
+    // Guardar archivo con copia directa
     private fun saveFileDirect(
         context: Context,
         file: File,
@@ -266,7 +339,7 @@ object YtDlpManager {
                 addOption("--embed-thumbnail")
                 addOption("-o", "${tempDir.absolutePath}/%(title).50s.%(ext)s")
                 addOption("--no-playlist")
-                addOption("--extractor-args", "youtube:player_client=android_vr")
+
                 addOption("--no-warnings")
             }
 
@@ -302,7 +375,7 @@ object YtDlpManager {
                 addOption("--embed-thumbnail")
                 addOption("-o", "${tempDir.absolutePath}/%(title).50s.%(ext)s")
                 addOption("--no-playlist")
-                addOption("--extractor-args", "youtube:player_client=android_vr")
+
                 addOption("--no-warnings")
             }
 
@@ -368,7 +441,7 @@ object YtDlpManager {
                 }
                 addOption("-o", "${tempDir.absolutePath}/%(title).50s.%(ext)s")
                 addOption("--no-playlist")
-                addOption("--extractor-args", "youtube:player_client=android_vr")
+
                 addOption("--no-warnings")
             }
 
@@ -433,7 +506,7 @@ object YtDlpManager {
                 }
                 addOption("-o", "${tempDir.absolutePath}/%(title).50s.%(ext)s")
                 addOption("--no-playlist")
-                addOption("--extractor-args", "youtube:player_client=android_vr")
+
                 addOption("--no-warnings")
             }
 

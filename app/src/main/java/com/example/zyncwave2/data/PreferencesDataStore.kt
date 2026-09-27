@@ -7,11 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 
-/**
- * Extensión de Context que crea una instancia única del DataStore.
- * El delegate 'preferencesDataStore' garantiza que solo existe un DataStore
- * con este nombre en toda la app — no hay que inicializarlo en App.kt.
- */
+
 val Context.downloadPreferencesStore: DataStore<Preferences>
         by preferencesDataStore(name = "download_preferences")
 

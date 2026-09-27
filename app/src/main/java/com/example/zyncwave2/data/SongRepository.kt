@@ -17,9 +17,9 @@ class SongRepository(private val context: Context) {
 
     private val dao = AppDatabase.getInstance(context).songDao()
 
-    // ─────────────────────────────────────────────────────────────────────────
+
     // Extensiones por motor — mismo criterio que MetadataRepository
-    // ─────────────────────────────────────────────────────────────────────────
+
     private val TAGLIB_EXT = setOf("opus")
 
     private val JAUDIOTAGGER_EXT = setOf(
@@ -28,9 +28,9 @@ class SongRepository(private val context: Context) {
 
     private val AUDIO_EXT = TAGLIB_EXT + JAUDIOTAGGER_EXT
 
-    // ─────────────────────────────────────────────────────────────────────────
+
     // API pública
-    // ─────────────────────────────────────────────────────────────────────────
+
 
     fun getSongsFlow(folders: Set<String>): Flow<List<Songs>> {
         return dao.getAllFlow().map { entities ->
@@ -93,9 +93,9 @@ class SongRepository(private val context: Context) {
         android.util.Log.d("SongRepo", "Escaneadas: ${entities.size} canciones")
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+
     // Escaneo de archivos
-    // ─────────────────────────────────────────────────────────────────────────
+
 
     private fun findAudioFiles(dir: File): List<File> {
         if (!dir.exists() || !dir.isDirectory) return emptyList()
@@ -106,8 +106,8 @@ class SongRepository(private val context: Context) {
 
     /**
      * Dispatch por extensión — mismo patrón que MetadataRepository.
-     * .opus  → TagLib (Kyant0)
-     * resto  → JAudioTagger (fork Adonai)
+     * ".opus" -> TagLib (Kyant0)
+     * resto -> JAudioTagger (fork Adonai)
      */
     private fun readMetadata(file: File): SongEntity? {
         val ext = file.extension.lowercase()
@@ -118,9 +118,7 @@ class SongRepository(private val context: Context) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
     // Motor 1: JAudioTagger  (mp3, flac, ogg-vorbis, m4a, wav, wma…)
-    // ─────────────────────────────────────────────────────────────────────────
 
     private fun readMetadataWithJAudioTagger(file: File): SongEntity? {
         return try {
@@ -131,6 +129,9 @@ class SongRepository(private val context: Context) {
             val albumName = tag?.getFirst(FieldKey.ALBUM).orEmpty()
             val albumId   = albumName.hashCode().toLong().and(0xFFFFFFFFL)
             val id        = file.absolutePath.hashCode().toLong().and(0xFFFFFFFFL)
+
+            val rawArt = tag?.firstArtwork?.binaryData
+            val thumb  = makeThumbnail(rawArt)
 
             SongEntity(
                 id           = id,
@@ -148,7 +149,9 @@ class SongRepository(private val context: Context) {
                 data         = file.absolutePath,
                 albumId      = albumId,
                 duration     = (props?.trackLength?.toLong() ?: 0L) * 1000L,
-                lastModified = file.lastModified()
+                lastModified = file.lastModified(),
+
+                artworkThumb = thumb
             )
         } catch (e: Exception) {
             android.util.Log.w("SongRepo", "[JAT] No se pudo leer ${file.name}: ${e.message}")
@@ -156,7 +159,7 @@ class SongRepository(private val context: Context) {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+
     // Motor 2: TagLib via Kyant0  (.opus)
     //
     // TagLib trabaja con ParcelFileDescriptor. Para archivos locales
@@ -164,7 +167,6 @@ class SongRepository(private val context: Context) {
     //
     // Vorbis Comments en Opus usan claves en mayúsculas:
     //   TITLE, ARTIST, ALBUM, GENRE, TRACKNUMBER, DISCNUMBER, DATE
-    // ─────────────────────────────────────────────────────────────────────────
 
     private fun readMetadataWithTagLib(file: File): SongEntity? {
         return try {
@@ -174,8 +176,11 @@ class SongRepository(private val context: Context) {
             )
 
             val metadata = pfd.use {
-                TagLib.getMetadata(it.dup().detachFd(), readPictures = false)
+                TagLib.getMetadata(it.dup().detachFd(), readPictures = true)
             }
+
+            val rawArt = metadata?.pictures?.firstOrNull()?.data
+            val thumb  = makeThumbnail(rawArt)
 
             if (metadata == null) {
                 android.util.Log.w("SongRepo", "[TagLib] metadata null para ${file.name}")
@@ -190,6 +195,7 @@ class SongRepository(private val context: Context) {
             val artist    = tag("ARTIST")
             val albumName = tag("ALBUM")
             val genre     = tag("GENRE")
+
 
             val trackNumber = tag("TRACKNUMBER")
                 .filter { it.isDigit() }
@@ -211,6 +217,7 @@ class SongRepository(private val context: Context) {
             val albumId = albumName.hashCode().toLong().and(0xFFFFFFFFL)
             val id      = file.absolutePath.hashCode().toLong().and(0xFFFFFFFFL)
 
+
             android.util.Log.d(
                 "SongRepo",
                 "[TagLib] Leído: title='$title' artist='$artist' album='$albumName' duration=${durationMs}ms"
@@ -227,7 +234,9 @@ class SongRepository(private val context: Context) {
                 data         = file.absolutePath,
                 albumId      = albumId,
                 duration     = durationMs,
-                lastModified = file.lastModified()
+                lastModified = file.lastModified(),
+                artworkThumb = thumb
+
             )
 
         } catch (e: Exception) {
@@ -235,4 +244,33 @@ class SongRepository(private val context: Context) {
             null
         }
     }
+
+    private fun makeThumbnail(rawBytes: ByteArray?, reqSize: Int = 200): ByteArray? {
+        if (rawBytes == null) return null
+        return try {
+            val boundsOptions = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, boundsOptions)
+
+            var inSampleSize = 1
+            val height = boundsOptions.outHeight
+            val width = boundsOptions.outWidth
+            if (height > reqSize || width > reqSize) {
+                val halfHeight = height / 2
+                val halfWidth = width / 2
+                while ((halfHeight / inSampleSize) >= reqSize && (halfWidth / inSampleSize) >= reqSize) {
+                    inSampleSize *= 2
+                }
+            }
+
+            val options = android.graphics.BitmapFactory.Options().apply { this.inSampleSize = inSampleSize }
+            val bitmap = android.graphics.BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, options) ?: return null
+
+            val out = java.io.ByteArrayOutputStream()
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, out)
+            out.toByteArray()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
 }

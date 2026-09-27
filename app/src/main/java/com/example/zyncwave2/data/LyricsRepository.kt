@@ -7,13 +7,15 @@ import android.content.Context
  * Coordina múltiples fuentes — el usuario elige cuál usar desde la UI.
  *
  * Fuentes disponibles:
- *  - LrcLib     → letras sincronizadas (LRC) y planas. Mejor cobertura general.
- *  - LyricsOvh  → letras planas. API pública sin key, sin registro.
- *  - NetEase    → letras sincronizadas (LRC). Excelente cobertura asiática y pop global.
+ *  - LrcLib: letras sincronizadas (LRC) y planas. Mejor cobertura general.
+ *  - LyricsOvh: letras planas. API pública sin key, sin registro.
+ *  - NetEase: letras sincronizadas (LRC).
+ *  - Genius: letras planas. API con key, requiere registro.
+ *  - Yt music: letras planas. API con key, requiere registro.
  */
 object LyricsRepository {
 
-    // ── Fuentes disponibles ───────────────────────────────────────────────────
+    // Fuentes disponibles
 
     enum class Source(val label: String) {
         LRCLIB("LrcLib"),
@@ -23,7 +25,7 @@ object LyricsRepository {
         YTMUSIC("YT Music")
     }
 
-    // ── Modelo unificado de resultado ─────────────────────────────────────────
+    // Modelo unificado de resultado
 
     data class LyricsResult(
         val title: String,
@@ -38,7 +40,7 @@ object LyricsRepository {
 
     )
 
-    // ── Búsqueda por fuente ───────────────────────────────────────────────────
+    // Búsqueda por fuente
 
     suspend fun search(
         title: String,
@@ -181,7 +183,7 @@ object LyricsRepository {
         }
     }
 
-    // ── Guardar ───────────────────────────────────────────────────────────────
+    // Guardar
 
     fun saveResult(
         context: Context,
@@ -198,7 +200,7 @@ object LyricsRepository {
         LyricsManager.saveLyrics(context, songId, lyrics)
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // Helpers
 
     fun loadLocal(context: Context, songId: Long): String =
         LyricsManager.loadLyrics(context, songId)
