@@ -31,6 +31,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -97,6 +98,33 @@ fun EqualizerScreen(onDismiss: () -> Unit) {
     // Género activo
     var selectedGenre by remember {
         mutableStateOf(prefs.getString("genre_preset", null))
+    }
+
+    androidx.activity.compose.BackHandler(enabled = true) {
+        EqualizerManager.savePreferences(context)
+        prefs.edit()
+            .putInt("reverb_preset", reverbPreset)
+            .putString("genre_preset", selectedGenre)
+            .apply()
+        onDismiss()
+    }
+
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+                EqualizerManager.savePreferences(context)
+                prefs.edit()
+                    .putInt("reverb_preset", reverbPreset)
+                    .putString("genre_preset", selectedGenre)
+                    .apply()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     LaunchedEffect(Unit) {

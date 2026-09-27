@@ -26,6 +26,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,6 +81,13 @@ fun SongsListScreen(
         }
     }
 
+    LaunchedEffect(permissionState.status, PlayerState.selectedFolders.value) {
+        if (permissionState.status.isGranted) {
+            android.util.Log.d("PERF", "syncLibrary START tab=$currentTab: ${System.currentTimeMillis()}")
+            playerViewModel?.syncLibrary()
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -92,35 +102,48 @@ fun SongsListScreen(
                 }
             }
         } else {
-            when (currentTab) {
-                1 -> SongsList(
+            var showSearch by remember { mutableStateOf(false) }
+
+            Column(modifier = Modifier.fillMaxSize()) {
+                when (currentTab) {
+                    1 -> SongsList(
+                        songs = songsState,
+                        onSongClick = { pos ->
+                            playerViewModel?.setQueueSource(
+                                PlayerState.QueueSource.ALL_SONGS, ""
+                            )
+                            onSongClick(songsState, pos)
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    2 -> ListsScreen(
+                        songs           = songsState,
+                        onSongClick     = onSongClick,
+                        playerViewModel = playerViewModel
+                    )
+                    3 -> ArtistScreen(
+                        songs           = songsState,
+                        onSongClick     = onSongClick,
+                        playerViewModel = playerViewModel
+                    )
+                    4 -> AlbumScreen(
+                        songs           = songsState,
+                        onSongClick     = onSongClick,
+                        playerViewModel = playerViewModel
+                    )
+                    5 -> FolderScreen(
+                        songs           = songsState,
+                        onSongClick     = onSongClick,
+                        playerViewModel = playerViewModel
+                    )
+                }
+            }
+
+            if (showSearch) {
+                SearchOverlay(
                     songs = songsState,
-                    onSongClick = { pos ->
-                        playerViewModel?.setQueueSource(
-                            PlayerState.QueueSource.ALL_SONGS, ""
-                        )
-                        onSongClick(songsState, pos)
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-                2 -> ListsScreen(
-                    songs           = songsState,
-                    onSongClick     = onSongClick,
-                    playerViewModel = playerViewModel
-                )
-                3 -> ArtistScreen(
-                    songs           = songsState,
-                    onSongClick     = onSongClick,
-                    playerViewModel = playerViewModel
-                )
-                4 -> AlbumScreen(
-                    songs           = songsState,
-                    onSongClick     = onSongClick,
-                    playerViewModel = playerViewModel
-                )
-                5 -> FolderScreen(
-                    songs           = songsState,
-                    onSongClick     = onSongClick,
+                    onDismiss = { showSearch = false },
+                    onSongClick = onSongClick,
                     playerViewModel = playerViewModel
                 )
             }

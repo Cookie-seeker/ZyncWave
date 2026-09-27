@@ -129,14 +129,15 @@ fun ListsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Brush.verticalGradient(listOf(Color(0xff191c1f), Color(0xff2c2c38))))
-                    .padding(16.dp)
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp)
             ) {
                 Text(
                     text = "Listas",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 22.sp,
-                    modifier = Modifier.statusBarsPadding().padding(bottom = 24.dp)
+                    modifier = Modifier.padding(top = 25.dp, bottom = 24.dp)
                 )
 
                 ListSectionCard(

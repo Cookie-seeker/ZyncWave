@@ -2,6 +2,7 @@ package com.example.zyncwave2.ui.theme
 
 import android.content.Context
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -54,9 +56,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,7 +75,7 @@ import com.example.zyncwave2.presentation.DownloadViewModel
 import org.json.JSONArray
 import org.json.JSONObject
 
-// ── Historial (SharedPreferences) ────────────────────────────────────────────
+// Historial (SharedPreferences)
 
 fun saveHistory(context: Context, list: List<DownloadItem>) {
     val arr = JSONArray()
@@ -108,7 +112,7 @@ fun loadHistory(context: Context): List<DownloadItem> {
     } catch (e: Exception) { emptyList() }
 }
 
-// ── DownloadScreen ────────────────────────────────────────────────────────────
+// DownloadScreen
 
 @Composable
 fun DownloadScreen(
@@ -173,9 +177,16 @@ fun DownloadScreen(
                 color      = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize   = 22.sp,
-                fontFamily = BebasNeue
+                fontFamily = Nunito
             )
             Row {
+                IconButton(onClick = { viewModel.setShowSupportedSites(true) }) {
+                    Icon(
+                        painterResource(R.drawable.outline_info_24),
+                        contentDescription = "Sitios soportados",
+                        tint = Color.White.copy(alpha = 0.7f)
+                    )
+                }
                 IconButton(onClick = { viewModel.setShowSettings(true) }) {
                     Icon(
                         painterResource(R.drawable.outline_settings_24),
@@ -186,7 +197,12 @@ fun DownloadScreen(
             }
         }
 
-        // ── Campo URL ─────────────────────────────────────────────────────────
+
+        if (s.showSupportedSites) {
+            SupportedSitesDialog(onDismiss = { viewModel.setShowSupportedSites(false) })
+        }
+
+        // Campo URL
         OutlinedTextField(
             value         = s.urlInput,
             onValueChange = { viewModel.onUrlChange(it) },
@@ -243,14 +259,65 @@ fun DownloadScreen(
             }
         }
 
-        if (s.statusMessage.isNotBlank() && !s.isDownloading) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(s.statusMessage, color = Color(0xFFe91e63), fontSize = 12.sp)
+        val currentError = s.formatsErrorRaw
+        if (currentError != null && !s.isDownloading) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF3D1420), RoundedCornerShape(12.dp))
+                    .border(1.dp, Color(0x50e91e63), RoundedCornerShape(12.dp))
+                    .padding(14.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        painterResource(R.drawable.outline_info_24),
+                        contentDescription = null,
+                        tint = Color(0xFFe91e63),
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "No se pudo obtener la información",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    s.statusMessage,
+                    color = Color(0xffe0e0e0),
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+                HorizontalDivider(color = Color(0x30ffffff))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    "Detalle técnico:",
+                    color = Color(0x90ffffff),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    currentError,
+                    color = Color(0x90ffffff),
+                    fontSize = 11.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    lineHeight = 15.sp
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // ── Progreso de descarga activa ───────────────────────────────────────
+        // Progreso de descarga activa
         if (s.isDownloading) {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -265,7 +332,7 @@ fun DownloadScreen(
             }
         }
 
-        // ── Botones ───────────────────────────────────────────────────────────
+        // Botones
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
                 onClick  = {
@@ -316,7 +383,7 @@ fun DownloadScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ── Cola de pendientes ────────────────────────────────────────────────
+        // Cola de pendientes
         if (s.queue.isNotEmpty()) {
             Text("En cola (${s.queue.size})", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Spacer(modifier = Modifier.height(8.dp))
@@ -344,7 +411,7 @@ fun DownloadScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // ── Historial ─────────────────────────────────────────────────────────
+        // Historial
         if (s.downloadList.isNotEmpty()) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Historial", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -389,7 +456,90 @@ fun DownloadScreen(
     }
 }
 
-// ── FormatsScreen — pantalla completa con pestañas Audio / Video ──────────────
+@Composable
+fun SupportedSitesDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val commonSites = listOf(
+        "YouTube" to R.drawable.outline_radio_button_checked_24,
+        "YouTube Music" to R.drawable.outline_radio_button_checked_24,
+        "SoundCloud" to R.drawable.outline_radio_button_checked_24,
+        "TikTok" to R.drawable.outline_radio_button_checked_24,
+        "Instagram" to R.drawable.outline_radio_button_checked_24,
+        "Twitter / X" to R.drawable.outline_radio_button_checked_24,
+        "Facebook" to R.drawable.outline_radio_button_checked_24,
+        "Vimeo" to R.drawable.outline_radio_button_checked_24,
+        "Twitch (clips y VODs)" to R.drawable.outline_radio_button_checked_24,
+        "Bandcamp" to R.drawable.outline_radio_button_checked_24,
+        "Dailymotion" to R.drawable.outline_radio_button_checked_24
+    )
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xff2c2c38), RoundedCornerShape(16.dp))
+                .padding(20.dp)
+        ) {
+            Text(
+                "Sitios soportados",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "ZyncWave usa yt-dlp, compatible con más de 1800 sitios. Algunos de los más comunes:",
+                color = Color(0xffbbbbbb),
+                fontSize = 13.sp
+            )
+            Spacer(Modifier.height(12.dp))
+
+            commonSites.forEach { (name, icon) ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 6.dp)
+                ) {
+                    Icon(
+                        painterResource(icon),
+                        contentDescription = null,
+                        tint = Color.Black,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(name, color = Color.White, fontSize = 14.sp)
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+            TextButton(
+                onClick = {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md")
+                        )
+                    )
+                }
+            ) {
+                Text("Ver lista completa (+1800 sitios)",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    textDecoration = TextDecoration.Underline )
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0x30ffffff))
+            ) {
+                Text("Cerrar", color = Color.White)
+            }
+        }
+    }
+}
+
+// FormatsScreen — pantalla completa con pestañas Audio / Video
 
 @Composable
 fun FormatsScreen(
@@ -418,7 +568,7 @@ fun FormatsScreen(
             .navigationBarsPadding()  // ← y esto
             .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
     ) {
-        // ── Header ────────────────────────────────────────────────────────────
+        // Header
         Row(
             modifier          = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -434,7 +584,7 @@ fun FormatsScreen(
             }
         }
 
-        // ── Sugeridos ─────────────────────────────────────────────────────────
+        // Sugeridos
         if (suggested.isNotEmpty()) {
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 Text("Sugerido", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -452,7 +602,7 @@ fun FormatsScreen(
             }
         }
 
-        // ── Pestañas Audio / Video ────────────────────────────────────────────
+        // Pestañas Audio / Video
         TabRow(
             selectedTabIndex = selectedTab,
             containerColor   = Color.Transparent,
@@ -479,7 +629,7 @@ fun FormatsScreen(
             }
         }
 
-        // ── Contenido de la pestaña ───────────────────────────────────────────
+        // Contenido de la pestaña
         when (selectedTab) {
             0 -> {
                 if (audioFormats.isEmpty()) {
@@ -539,7 +689,7 @@ fun FormatsScreen(
             }
         }
 
-        // ── Botón confirmar ───────────────────────────────────────────────────
+        // Botón confirmar
         Button(
             onClick  = onBack,
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -552,7 +702,7 @@ fun FormatsScreen(
     }
 }
 
-// ── FormatItem ────────────────────────────────────────────────────────────────
+// FormatItem
 
 @Composable
 fun FormatItem(format: VideoFormat, selected: Boolean, onClick: () -> Unit) {
@@ -584,7 +734,7 @@ fun FormatItem(format: VideoFormat, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
-// ── SettingsScreen — pantalla completa de ajustes ─────────────────────────────
+// SettingsScreen — pantalla completa de ajustes
 
 @Composable
 fun SettingsScreen(
@@ -602,7 +752,7 @@ fun SettingsScreen(
             .navigationBarsPadding()
             .verticalScroll(rememberScrollState())
     ) {
-        // ── Header ────────────────────────────────────────────────────────────
+        // Header
         Row(
             modifier          = Modifier
                 .fillMaxWidth()
@@ -625,7 +775,7 @@ fun SettingsScreen(
             )
         }
 
-        // ── Sección: Preferencias de descarga ─────────────────────────────────
+        // Sección: Preferencias de descarga
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -733,7 +883,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ── Sección: Actualizador yt-dlp ──────────────────────────────────────
+        // Sección: Actualizador yt-dlp
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -748,7 +898,7 @@ fun SettingsScreen(
                 Icon(
                     painterResource(R.drawable.outline_download_24),
                     contentDescription = null,
-                    tint     = Color(0xFF9c27b0),
+                    tint     = Color.White,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -839,4 +989,5 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
     }
+
 }

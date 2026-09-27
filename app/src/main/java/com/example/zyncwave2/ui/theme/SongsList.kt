@@ -54,7 +54,7 @@ fun SongsListItem(song: Songs, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         SongArtImage(
-            data = song.data,
+            song = song,
             modifier = Modifier
                 .size(56.dp)
                 .clip(CircleShape)

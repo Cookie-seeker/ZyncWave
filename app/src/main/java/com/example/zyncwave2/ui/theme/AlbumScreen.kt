@@ -69,7 +69,7 @@ fun AlbumScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     SongArtImage(
-                        data = firstSong.data,
+                        song = firstSong,
                         modifier = Modifier
                             .size(56.dp)
                             .clip(CircleShape)

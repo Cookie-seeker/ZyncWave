@@ -158,7 +158,7 @@ private fun TagEditorContent(
                 .background(Color(0xff1e1e2e))
                 .verticalScroll(rememberScrollState())
         ) {
-            // ── Header ────────────────────────────────────────────────────────
+            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -185,7 +185,7 @@ private fun TagEditorContent(
                 }
             }
 
-            // ── Carátula ──────────────────────────────────────────────────────
+            // Carátula
             val artCacheKey = remember(newArtUri) {
                 if (newArtUri != null) "new_$newArtUri" else "art_${song.albumId}"
             }
@@ -235,7 +235,7 @@ private fun TagEditorContent(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // ── Campos de texto ───────────────────────────────────────────────
+            // Campos de texto
             TagField("Título",  title)  { title  = it }
             Spacer(Modifier.height(16.dp))
             TagField("Artista", artist) { artist = it }
@@ -245,7 +245,7 @@ private fun TagEditorContent(
             TagField("Género",  genre)  { genre  = it }
             Spacer(Modifier.height(16.dp))
 
-            // ── Pista y disco ─────────────────────────────────────────────────
+            // Pista y disco
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -288,7 +288,7 @@ private fun TagEditorContent(
 
             Spacer(Modifier.height(16.dp))
 
-            // ── Ruta del archivo ──────────────────────────────────────────────
+            // Ruta del archivo
             Column(modifier = Modifier.padding(horizontal = 24.dp)) {
                 Text("Archivo", color = Color(0x80ffffff), fontSize = 13.sp)
                 Spacer(Modifier.height(4.dp))
@@ -303,7 +303,7 @@ private fun TagEditorContent(
                 }
             }
 
-            // ── Info formato ──────────────────────────────────────────────────
+            // Info formato
             Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier
@@ -327,7 +327,7 @@ private fun TagEditorContent(
                 )
             }
 
-            // ── Error ─────────────────────────────────────────────────────────
+            // Error
             errorMsg?.let {
                 Spacer(Modifier.height(16.dp))
                 Text(

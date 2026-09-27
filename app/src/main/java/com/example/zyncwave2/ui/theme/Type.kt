@@ -2,29 +2,23 @@ package com.example.zyncwave2.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.googlefonts.Font
-import androidx.compose.ui.text.googlefonts.GoogleFont
 import androidx.compose.ui.unit.sp
 import com.example.zyncwave2.R
 
-val provider = GoogleFont.Provider(
-    providerAuthority = "com.google.android.gms.fonts",
-    providerPackage = "com.google.android.gms",
-    certificates = R.array.com_google_android_gms_fonts_certs
-)
-
 val BebasNeue = FontFamily(
-    Font(googleFont = GoogleFont("Bebas Neue"), fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = GoogleFont("Bebas Neue"), fontProvider = provider, weight = FontWeight.Bold),
+    Font(R.font.fredoka_regular, weight = FontWeight.Normal),
+    Font(R.font.fredoka_bold,    weight = FontWeight.Bold)
 )
 
+// PRUEBA: Nunito → Comfortaa, solo para ver cómo se ve
 val Nunito = FontFamily(
-    Font(googleFont = GoogleFont("Nunito"), fontProvider = provider, weight = FontWeight.Normal),
-    Font(googleFont = GoogleFont("Nunito"), fontProvider = provider, weight = FontWeight.Bold),
-    Font(googleFont = GoogleFont("Nunito"), fontProvider = provider, weight = FontWeight.SemiBold),
-    Font(googleFont = GoogleFont("Nunito"), fontProvider = provider, weight = FontWeight.Light),
+    Font(R.font.comfortaa_light,    weight = FontWeight.Light),
+    Font(R.font.comfortaa_regular,  weight = FontWeight.Normal),
+    Font(R.font.comfortaa_semibold, weight = FontWeight.SemiBold),
+    Font(R.font.comfortaa_bold,     weight = FontWeight.Bold)
 )
 
 val AppTypography = Typography(

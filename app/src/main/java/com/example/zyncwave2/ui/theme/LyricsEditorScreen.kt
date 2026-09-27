@@ -62,7 +62,7 @@ import com.example.zyncwave2.data.LyricsRepository
 import com.example.zyncwave2.data.Songs
 import kotlinx.coroutines.launch
 
-// ── Estados posibles de la UI de letras ──────────────────────────────────────
+//Estados posibles de la UI de letras
 private sealed interface LyricsUiMode {
     data object Editor    : LyricsUiMode
     data class Searching(val source: LyricsRepository.Source) : LyricsUiMode
@@ -77,7 +77,7 @@ fun LyricsEditorScreen(
     onDismiss: () -> Unit,
     onSave: (String) -> Unit
 ) {
-    // ── Dialog fullscreen: tiene su propia ventana, el teclado no afecta al player ──
+    // Dialog fullscreen: tiene su propia ventana
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -130,7 +130,7 @@ private fun LyricsEditorContent(
                     .padding(top = 48.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
             ) {
 
-                // ── Barra superior ────────────────────────────────────────────
+                //Barra superior
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -198,10 +198,10 @@ private fun LyricsEditorContent(
                     }
                 }
 
-                // ── Contenido principal según modo ────────────────────────────
+                //Contenido principal según modo
                 when (val currentMode = mode) {
 
-                    // ── Modo editor ───────────────────────────────────────────
+                    //Modo editor
                     is LyricsUiMode.Editor -> {
                         Box(
                             modifier = Modifier
@@ -248,7 +248,7 @@ private fun LyricsEditorContent(
                             )
                         }
 
-                        // ── Botones inferiores ────────────────────────────────
+                        //Botones inferiores
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -274,10 +274,11 @@ private fun LyricsEditorContent(
                                     tint = Color.White, modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Google", color = Color.White)
+                                Text("Google", color = Color.White, fontSize = 13.sp )
+
                             }
 
-                            // ── Botón Buscar con dropdown ─────────────────────
+                            //Botón Buscar con dropdown
                             Box {
                                 Button(
                                     onClick = { showSourceMenu = true },
@@ -340,11 +341,11 @@ private fun LyricsEditorContent(
                                                 Icon(
                                                     painterResource(
                                                         when (source) {
-                                                            LyricsRepository.Source.YTMUSIC -> R.drawable.outline_music_note_2_24
-                                                            LyricsRepository.Source.LRCLIB    -> R.drawable.outline_lyrics_24
+                                                            LyricsRepository.Source.YTMUSIC -> R.drawable.ytmusic_svg
+                                                            LyricsRepository.Source.LRCLIB    -> R.drawable.lrclib_svg
                                                             LyricsRepository.Source.LYRICSOVH -> R.drawable.outline_search_24
-                                                            LyricsRepository.Source.GENIUS    -> R.drawable.outline_mic_24
-                                                            LyricsRepository.Source.NETEASE   -> R.drawable.outline_music_note_24
+                                                            LyricsRepository.Source.GENIUS    -> R.drawable.genius_svg
+                                                            LyricsRepository.Source.NETEASE   -> R.drawable.netease_cloud_music_svgrepo_com
                                                         }
                                                     ),
                                                     contentDescription = null,
@@ -389,7 +390,7 @@ private fun LyricsEditorContent(
                                 }
                             }
 
-                            // Pegar del portapapeles
+                            //Pegar del portapapeles
                             IconButton(
                                 onClick = {
                                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE)
@@ -412,7 +413,7 @@ private fun LyricsEditorContent(
                         }
                     }
 
-                    // ── Modo buscando ─────────────────────────────────────────
+                    //Modo buscandor
                     is LyricsUiMode.Searching -> {
                         Box(
                             modifier = Modifier
@@ -436,7 +437,7 @@ private fun LyricsEditorContent(
                         }
                     }
 
-                    // ── Modo resultados ───────────────────────────────────────
+                    //Mostrar resultados
                     is LyricsUiMode.Results -> {
                         Text(
                             "${currentMode.items.size} resultado${if (currentMode.items.size != 1) "s" else ""}",
@@ -494,7 +495,7 @@ private fun LyricsEditorContent(
     }
 }
 
-// ── Tarjeta de resultado unificada ───────────────────────────────────────────
+//Tarjeta de resultado unificada
 
 @Composable
 private fun LyricsResultItem(

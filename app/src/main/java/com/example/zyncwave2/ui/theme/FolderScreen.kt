@@ -93,6 +93,7 @@ fun FolderScreen(
             Text(
                 text = "Carpetas",
                 color = Color.White,
+
                 fontWeight = FontWeight.Bold,
                 fontSize = 20.sp
             )
