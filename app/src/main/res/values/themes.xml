@@ -16,6 +16,7 @@
     <style name="TabTextAppearance" parent="TextAppearance.MaterialComponents.Caption">
         <item name="android:textSize">14sp</item>
         <item name="android:textAllCaps">false</item>
+        <item name="android:fontFamily">@font/nunito_bold</item>
     </style>
 
 </resources>
