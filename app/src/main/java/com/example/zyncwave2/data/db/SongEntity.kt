@@ -17,9 +17,10 @@ data class SongEntity(
     val data: String,           // path absoluto del archivo
     val albumId: Long,
     val duration: Long,         // ms
-    val lastModified: Long      // timestamp del archivo en disco — detecta cambios
+    val lastModified: Long,     // timestamp del archivo en disco — detecta cambios
+    val artworkThumb: ByteArray? = null
 ) {
-    // Convierte a Songs (data class existente) para no romper el código actual
+
     fun toSongs(): Songs = Songs(
         id        = id,
         title     = title.ifBlank { null },
@@ -29,7 +30,8 @@ data class SongEntity(
         albumName = album.ifBlank { null },
         genre     = genre.ifBlank { null },
         trackNumber = trackNumber.takeIf { it > 0 },
-        discNumber  = discNumber.takeIf { it > 1 }
+        discNumber  = discNumber.takeIf { it > 1 },
+        artworkThumb = artworkThumb
     )
 
     companion object {
@@ -40,7 +42,8 @@ data class SongEntity(
             trackNumber: Int    = 0,
             discNumber: Int     = 1,
             duration: Long      = 0L,
-            lastModified: Long  = 0L
+            lastModified: Long  = 0L,
+            artworkThumb: ByteArray? = null
         ): SongEntity = SongEntity(
             id           = song.id,
             title        = song.title.orEmpty(),
@@ -52,7 +55,8 @@ data class SongEntity(
             data         = song.data,
             albumId      = song.albumId,
             duration     = duration,
-            lastModified = lastModified
+            lastModified = lastModified,
+            artworkThumb = artworkThumb
         )
     }
 }

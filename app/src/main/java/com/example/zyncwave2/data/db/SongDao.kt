@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface SongDao {
 
-    // ── Lectura ───────────────────────────────────────────────────────────────
+    // Lectura
 
     /**
      * Todas las canciones ordenadas por título.
@@ -27,11 +27,11 @@ interface SongDao {
     @Query("SELECT COUNT(*) FROM songs")
     suspend fun count(): Int
 
-    /** Proyección mínima para el sync inteligente — no carga todos los campos */
+    /** Proyección mínima para el sync inteligente, no carga todos los campos */
     @Query("SELECT data, lastModified FROM songs")
     suspend fun getPathsAndModified(): List<PathModified>
 
-    // ── Escritura ─────────────────────────────────────────────────────────────
+    //Escritura
 
     @Upsert
     suspend fun upsert(song: SongEntity)
@@ -64,7 +64,7 @@ interface SongDao {
 
     /**
      * Elimina canciones cuyos paths ya no existen en disco.
-     * Room no soporta NOT IN con lista dinámica grande — se hace por lotes en el repo.
+     * Room no soporta NOT IN con lista dinámica grande se hace por lotes en el repo.
      */
     @Query("DELETE FROM songs WHERE data = :path")
     suspend fun deleteByPath(path: String)
@@ -74,7 +74,7 @@ interface SongDao {
 
 }
 
-/** Proyección mínima para comparar caché vs disco sin cargar todo */
+/** Proyección mínima para comparar caché */
 data class PathModified(
     val data: String,
     val lastModified: Long
